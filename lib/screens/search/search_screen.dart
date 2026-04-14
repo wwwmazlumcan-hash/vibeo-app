@@ -62,10 +62,10 @@ class _SearchScreenState extends State<SearchScreen> {
               return ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: VideoItem(
-                  // Artık hata vermeyecek
                   imageUrl: data['imageUrl'] ?? '',
                   prompt: data['prompt'] ?? '',
                   userId: data['userId'] ?? 'Unknown',
+                  postId: docs[index].id,
                 ),
               );
             },

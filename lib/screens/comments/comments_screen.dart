@@ -1,53 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:provider/provider.dart';
-import 'package:timeago/timeago.dart' as timeago;
-import '../../models/comment_model.dart';
-import '../../providers/user_provider.dart';
-import '../../services/video_service.dart';
 
 class CommentsScreen extends StatefulWidget {
-  final String videoId;
-  const CommentsScreen({super.key, required this.videoId});
+  final String postId;
+  const CommentsScreen({super.key, required this.postId});
 
   @override
   State<CommentsScreen> createState() => _CommentsScreenState();
 }
 
 class _CommentsScreenState extends State<CommentsScreen> {
-  final _commentCtrl = TextEditingController();
-  final _videoService = VideoService();
-  bool _isSending = false;
+  final _ctrl = TextEditingController();
+  bool _sending = false;
 
-  Future<void> _sendComment() async {
-    final text = _commentCtrl.text.trim();
+  Future<void> _send() async {
+    final text = _ctrl.text.trim();
     if (text.isEmpty) return;
-
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final userProv = context.read<UserProvider>();
-    final user = userProv.user;
-
-    setState(() => _isSending = true);
+    setState(() => _sending = true);
     try {
-      await _videoService.addComment(
-        videoId: widget.videoId,
-        userId: uid,
-        username: user?.username ?? 'anonymous',
-        profilePicUrl: user?.profilePicUrl ?? '',
-        text: text,
-      );
-      _commentCtrl.clear();
+      // Kullanıcı adını çek
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final username = (userDoc.exists && userDoc['username'] != null)
+          ? userDoc['username'] as String
+          : uid.substring(0, 6);
+
+      await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId)
+          .collection('comments')
+          .add({
+        'userId': uid,
+        'username': username,
+        'text': text,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      _ctrl.clear();
     } finally {
-      if (mounted) setState(() => _isSending = false);
+      if (mounted) setState(() => _sending = false);
     }
   }
 
   @override
   void dispose() {
-    _commentCtrl.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
@@ -64,7 +63,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
         ),
         child: Column(
           children: [
-            // Başlık
+            // Handle
             Container(
               margin: const EdgeInsets.symmetric(vertical: 12),
               width: 40,
@@ -85,17 +84,20 @@ class _CommentsScreenState extends State<CommentsScreen> {
 
             // Yorum listesi
             Expanded(
-              child: StreamBuilder<List<CommentModel>>(
-                stream: _videoService.getComments(widget.videoId),
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('posts')
+                    .doc(widget.postId)
+                    .collection('comments')
+                    .orderBy('createdAt', descending: false)
+                    .snapshots(),
                 builder: (context, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(
-                          color: Colors.cyanAccent),
-                    );
+                        child: CircularProgressIndicator(color: Colors.cyanAccent));
                   }
-                  final comments = snap.data ?? [];
-                  if (comments.isEmpty) {
+                  final docs = snap.data?.docs ?? [];
+                  if (docs.isEmpty) {
                     return const Center(
                       child: Text('Henüz yorum yok. İlk yorumu yaz!',
                           style: TextStyle(color: Colors.white38)),
@@ -103,15 +105,22 @@ class _CommentsScreenState extends State<CommentsScreen> {
                   }
                   return ListView.builder(
                     controller: scrollCtrl,
-                    itemCount: comments.length,
+                    itemCount: docs.length,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemBuilder: (_, i) => _CommentTile(comment: comments[i]),
+                    itemBuilder: (_, i) {
+                      final d = docs[i].data() as Map<String, dynamic>;
+                      return _CommentTile(
+                        username: d['username'] ?? 'kullanıcı',
+                        text: d['text'] ?? '',
+                        createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
+                      );
+                    },
                   );
                 },
               ),
             ),
 
-            // Yorum yazma alanı
+            // Yorum yaz
             Container(
               padding: EdgeInsets.only(
                 left: 16,
@@ -126,7 +135,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: _commentCtrl,
+                      controller: _ctrl,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         hintText: 'Yorum yaz...',
@@ -143,7 +152,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _isSending
+                  _sending
                       ? const SizedBox(
                           width: 24,
                           height: 24,
@@ -151,7 +160,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                               strokeWidth: 2, color: Colors.cyanAccent),
                         )
                       : IconButton(
-                          onPressed: _sendComment,
+                          onPressed: _send,
                           icon: const Icon(Icons.send_rounded,
                               color: Colors.cyanAccent),
                         ),
@@ -166,8 +175,23 @@ class _CommentsScreenState extends State<CommentsScreen> {
 }
 
 class _CommentTile extends StatelessWidget {
-  final CommentModel comment;
-  const _CommentTile({required this.comment});
+  final String username;
+  final String text;
+  final DateTime? createdAt;
+  const _CommentTile({
+    required this.username,
+    required this.text,
+    this.createdAt,
+  });
+
+  String _timeAgo(DateTime? dt) {
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}d';
+    if (diff.inHours < 24) return '${diff.inHours}sa';
+    return '${diff.inDays}g';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -176,15 +200,10 @@ class _CommentTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
+          const CircleAvatar(
             radius: 18,
             backgroundColor: Colors.cyanAccent,
-            backgroundImage: comment.profilePicUrl.isNotEmpty
-                ? CachedNetworkImageProvider(comment.profilePicUrl)
-                : null,
-            child: comment.profilePicUrl.isEmpty
-                ? const Icon(Icons.person, size: 18, color: Colors.black)
-                : null,
+            child: Icon(Icons.person, size: 18, color: Colors.black),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -194,7 +213,7 @@ class _CommentTile extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      '@${comment.username}',
+                      '@$username',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.cyanAccent,
@@ -202,15 +221,15 @@ class _CommentTile extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      timeago.format(comment.createdAt, locale: 'tr'),
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 11),
+                      _timeAgo(createdAt),
+                      style: const TextStyle(color: Colors.white38, fontSize: 11),
                     ),
                   ],
                 ),
                 const SizedBox(height: 3),
-                Text(comment.text,
-                    style: const TextStyle(color: Colors.white, fontSize: 14)),
+                Text(text,
+                    style:
+                        const TextStyle(color: Colors.white, fontSize: 14)),
               ],
             ),
           ),

@@ -69,6 +69,8 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         'imageUrl': _generatedImageUrl,
         'prompt': _promptController.text.trim(),
         'createdAt': FieldValue.serverTimestamp(),
+        'likedBy': [],
+        'likesCount': 0,
       });
 
       if (!mounted) return;

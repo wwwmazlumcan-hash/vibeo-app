@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../screens/comments/comments_screen.dart';
 
 class VideoItem extends StatefulWidget {
   final String imageUrl;
@@ -198,7 +199,19 @@ class _VideoItemState extends State<VideoItem> {
                 ),
               ),
               const SizedBox(height: 22),
-              const _ActionBtn(icon: Icons.comment_rounded, label: 'Yorum'),
+              GestureDetector(
+                onTap: widget.postId.isEmpty
+                    ? null
+                    : () => showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) =>
+                              CommentsScreen(postId: widget.postId),
+                        ),
+                child: const _ActionBtn(
+                    icon: Icons.comment_rounded, label: 'Yorum'),
+              ),
               const SizedBox(height: 22),
               const _ActionBtn(icon: Icons.share_rounded, label: 'Paylaş'),
             ],
