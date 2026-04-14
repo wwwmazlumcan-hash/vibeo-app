@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Vibeo — Chrome (Web)",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "-d", "chrome", "--web-port", "8080"],
+      "port": 8080
+    },
+    {
+      "name": "Vibeo — Edge (Web)",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "-d", "edge", "--web-port", "8081"],
+      "port": 8081
+    },
+    {
+      "name": "Vibeo — Windows (Desktop)",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "-d", "windows"],
+      "port": 0
+    },
+    {
+      "name": "Vibeo — Android (USB/Emulator)",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "-d", "android"],
+      "port": 0
+    }
+  ]
+}

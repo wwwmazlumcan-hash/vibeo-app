@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "74675326225",
+    "project_id": "vibeo-58032",
+    "storage_bucket": "vibeo-58032.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:74675326225:android:bb1e083dad5a6ec7abd0b0",
+        "android_client_info": {
+          "package_name": "com.vibeo.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBXeORIk64WNqHdsEpDY-iMpDSjVn47jYo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
