@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 // YOLLAR: Klasörlerin ayrı olduğunu bildiğim için yolları buna göre yazdım
 import '../screens/feed/feed_screen.dart';
 import '../screens/search/search_screen.dart';
-import '../screens/ai/ai_studio_screen.dart'; // AI klasörü
+import '../screens/ai/ai_studio_screen.dart';
+import '../screens/messages/messages_screen.dart';
 import '../screens/profile/profile_screen.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -19,8 +20,7 @@ class _MainNavigationState extends State<MainNavigation> {
     const FeedScreen(),
     const SearchScreen(),
     const AiStudioScreen(), // Orta buton burayı açacak
-    const Center(
-        child: Text("Mesajlar", style: TextStyle(color: Colors.white))),
+    const MessagesScreen(),
     const ProfileScreen(),
   ];
 
