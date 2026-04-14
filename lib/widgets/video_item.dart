@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/comments/comments_screen.dart';
+import '../services/moderation_service.dart';
+import '../services/points_service.dart';
 
 class VideoItem extends StatefulWidget {
   final String imageUrl;
@@ -81,7 +83,28 @@ class _VideoItemState extends State<VideoItem> {
       'likesCount': FieldValue.increment(wasLiked ? -1 : 1),
     });
 
+    // Award XP to post owner when liked
+    if (!wasLiked && widget.userId != _myUid) {
+      final ownerRef =
+          FirebaseFirestore.instance.collection('users').doc(widget.userId);
+      await ownerRef.update({
+        'points': FieldValue.increment(PointsService.pointsPerLikeReceived),
+      });
+    }
+
     if (mounted) setState(() => _liking = false);
+  }
+
+  void _showReport() {
+    if (widget.postId.isEmpty) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF111111),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _ReportSheet(postId: widget.postId),
+    );
   }
 
   String _fmt(int n) {
@@ -103,8 +126,8 @@ class _VideoItemState extends State<VideoItem> {
             if (loading == null) return child;
             return const ColoredBox(
               color: Colors.black,
-              child:
-                  Center(child: CircularProgressIndicator(color: Colors.cyanAccent)),
+              child: Center(
+                  child: CircularProgressIndicator(color: Colors.cyanAccent)),
             );
           },
           errorBuilder: (_, __, ___) => const ColoredBox(
@@ -121,7 +144,7 @@ class _VideoItemState extends State<VideoItem> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [Colors.transparent, Colors.black87],
-              stops: [0.5, 1.0],
+              stops: [0.4, 1.0],
             ),
           ),
         ),
@@ -199,6 +222,8 @@ class _VideoItemState extends State<VideoItem> {
                 ),
               ),
               const SizedBox(height: 22),
+
+              // Yorum
               GestureDetector(
                 onTap: widget.postId.isEmpty
                     ? null
@@ -213,7 +238,17 @@ class _VideoItemState extends State<VideoItem> {
                     icon: Icons.comment_rounded, label: 'Yorum'),
               ),
               const SizedBox(height: 22),
+
+              // Paylaş
               const _ActionBtn(icon: Icons.share_rounded, label: 'Paylaş'),
+              const SizedBox(height: 22),
+
+              // Şikayet
+              GestureDetector(
+                onTap: _showReport,
+                child: const _ActionBtn(
+                    icon: Icons.flag_outlined, label: 'Bildir'),
+              ),
             ],
           ),
         ),
@@ -233,9 +268,62 @@ class _ActionBtn extends StatelessWidget {
       children: [
         Icon(icon, color: Colors.white, size: 30),
         const SizedBox(height: 3),
-        Text(label,
-            style: const TextStyle(color: Colors.white, fontSize: 11)),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 11)),
       ],
+    );
+  }
+}
+
+class _ReportSheet extends StatelessWidget {
+  final String postId;
+  const _ReportSheet({required this.postId});
+
+  static const _reasons = [
+    'Spam veya yanıltıcı içerik',
+    'Nefret söylemi',
+    'Şiddet içeriği',
+    'Uygunsuz içerik',
+    'Telif hakkı ihlali',
+    'Diğer',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('İçeriği Bildir',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text('Neden bildiriyorsunuz?',
+              style: TextStyle(color: Colors.white38, fontSize: 13)),
+          const SizedBox(height: 16),
+          ..._reasons.map((r) => ListTile(
+                leading: const Icon(Icons.flag_outlined, color: Colors.redAccent),
+                title: Text(r, style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  await ModerationService.reportPost(
+                      postId: postId, reason: r);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Bildiriminiz alındı. Teşekkürler.'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+              )),
+          const SizedBox(height: 16),
+        ],
+      ),
     );
   }
 }

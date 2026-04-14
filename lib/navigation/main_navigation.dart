@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-// YOLLAR: Klasörlerin ayrı olduğunu bildiğim için yolları buna göre yazdım
 import '../screens/feed/feed_screen.dart';
 import '../screens/search/search_screen.dart';
 import '../screens/ai/ai_studio_screen.dart';
-import '../screens/messages/messages_screen.dart';
-import '../screens/profile/profile_screen.dart';
+import '../screens/chat/chat_list_screen.dart';
+import '../screens/hub/hub_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -17,11 +16,11 @@ class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const FeedScreen(),
-    const SearchScreen(),
-    const AiStudioScreen(), // Orta buton burayı açacak
-    const MessagesScreen(),
-    const ProfileScreen(),
+    const FeedScreen(),       // İzletiyor
+    const SearchScreen(),     // Keşfet
+    const AiStudioScreen(),   // Üretiyor (merkez)
+    const ChatListScreen(),   // Konuşturuyor
+    const HubScreen(),        // Kazandırıyor + Eğitiyor + Koruyor + Profil
   ];
 
   @override
@@ -38,19 +37,29 @@ class _MainNavigationState extends State<MainNavigation> {
         showSelectedLabels: false,
         showUnselectedLabels: false,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Akış'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Keşfet'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_filled),
+            label: 'Akış',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'Keşfet',
+          ),
           BottomNavigationBarItem(
             icon: CircleAvatar(
               backgroundColor: Colors.cyanAccent,
-              child: Icon(Icons.add, color: Colors.black),
+              child: Icon(Icons.auto_awesome, color: Colors.black),
             ),
             label: 'AI',
           ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline), label: 'Mesajlar'),
+            icon: Icon(Icons.chat_bubble_outline),
+            label: 'Mesajlar',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline), label: 'Profil'),
+            icon: Icon(Icons.grid_view_rounded),
+            label: 'Hub',
+          ),
         ],
       ),
     );

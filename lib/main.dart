@@ -10,6 +10,7 @@ import 'providers/user_provider.dart';
 import 'providers/video_provider.dart';
 import 'navigation/main_navigation.dart';
 import 'screens/auth/login_screen.dart';
+import 'services/connectivity_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +37,9 @@ Future<void> main() async {
   } catch (e) {
     debugPrint('Firebase hatası: $e');
   }
+
+  // Self-healing: bağlantı izlemeyi başlat
+  ConnectivityService().startMonitoring();
 
   runApp(const VibeoApp());
 }
@@ -71,7 +75,7 @@ class VibeoApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const _AuthGate(),
+        home: const OfflineWrapper(child: _AuthGate()),
       ),
     );
   }
