@@ -15,6 +15,24 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   final _promptController = TextEditingController();
   String? _generatedImageUrl;
   bool _isLoading = false;
+  int _charCount = 0;
+
+  static const _suggestions = [
+    'Siberpunk İstanbul, neon ışıklar, yağmur',
+    'Japon bahçesi, kiraz çiçekleri, gün batımı',
+    'Uzayda yüzen astronot, galaksi arka plan',
+    'Sihirli orman, parıldayan mantarlar, gece',
+    'Fütüristik şehir, uçan arabalar, 2077',
+    'Antik Mısır, piramitler, altın çöl',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _promptController.addListener(() {
+      setState(() => _charCount = _promptController.text.length);
+    });
+  }
 
   // 🎨 AI Görselini Üreten Fonksiyon
   void _generateImage() {
@@ -85,14 +103,61 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Giriş Alanı
-            VibeoInput(
-              controller: _promptController,
-              hintText: "Örn: Siberpunk bir İstanbul sokağı, yağmurlu...",
-              maxLines: 3,
+            // Prompt ipuçları
+            const Text('Fikir al:',
+                style: TextStyle(color: Colors.white38, fontSize: 12)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 34,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _suggestions.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: () => _promptController.text = _suggestions[i],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                          color: Colors.cyanAccent.withValues(alpha: 0.4)),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(_suggestions[i],
+                        style: const TextStyle(
+                            color: Colors.cyanAccent, fontSize: 12)),
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // Giriş Alanı + karakter sayacı
+            Stack(
+              children: [
+                VibeoInput(
+                  controller: _promptController,
+                  hintText: "Hayal et ve yaz...",
+                  maxLines: 3,
+                ),
+                Positioned(
+                  right: 12,
+                  bottom: 10,
+                  child: Text(
+                    '$_charCount/500',
+                    style: TextStyle(
+                      color: _charCount > 400
+                          ? Colors.redAccent
+                          : Colors.white24,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
 
             // Üret Butonu
             VibeoButton(

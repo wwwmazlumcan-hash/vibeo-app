@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../widgets/video_item.dart'; // Bu yolun doğruluğundan emin ol
+import '../../widgets/video_item.dart';
+import '../../widgets/shimmer_box.dart';
 
 class FeedScreen extends StatelessWidget {
   const FeedScreen({super.key});
@@ -23,10 +24,9 @@ class FeedScreen extends StatelessWidget {
                     style: TextStyle(color: Colors.white)));
           }
 
-          // Yükleniyor durumu
+          // Yükleniyor durumu — shimmer
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-                child: CircularProgressIndicator(color: Colors.cyanAccent));
+            return const FeedShimmer();
           }
 
           // Veri boşsa
