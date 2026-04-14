@@ -1,53 +1,227 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class VideoItem extends StatelessWidget {
+class VideoItem extends StatefulWidget {
   final String imageUrl;
   final String prompt;
   final String userId;
+  final String postId;
 
   const VideoItem({
     super.key,
     required this.imageUrl,
     required this.prompt,
     required this.userId,
+    this.postId = '',
   });
+
+  @override
+  State<VideoItem> createState() => _VideoItemState();
+}
+
+class _VideoItemState extends State<VideoItem> {
+  String _username = '';
+  List<String> _likedBy = [];
+  bool _liking = false;
+
+  String get _myUid => FirebaseAuth.instance.currentUser?.uid ?? '';
+  bool get _isLiked => _likedBy.contains(_myUid);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+    if (widget.postId.isNotEmpty) _listenLikes();
+  }
+
+  void _loadUsername() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .get();
+    if (!mounted) return;
+    setState(() {
+      _username = (doc.exists && doc['username'] != null)
+          ? doc['username']
+          : widget.userId.substring(0, widget.userId.length.clamp(0, 6));
+    });
+  }
+
+  void _listenLikes() {
+    FirebaseFirestore.instance
+        .collection('posts')
+        .doc(widget.postId)
+        .snapshots()
+        .listen((snap) {
+      if (mounted && snap.exists) {
+        setState(() {
+          _likedBy = List<String>.from(
+              (snap.data() as Map<String, dynamic>)['likedBy'] ?? []);
+        });
+      }
+    });
+  }
+
+  Future<void> _toggleLike() async {
+    if (_liking || widget.postId.isEmpty || _myUid.isEmpty) return;
+    final wasLiked = _isLiked;
+    setState(() {
+      _liking = true;
+      wasLiked ? _likedBy.remove(_myUid) : _likedBy.add(_myUid);
+    });
+
+    final ref =
+        FirebaseFirestore.instance.collection('posts').doc(widget.postId);
+    await ref.update({
+      'likedBy': wasLiked
+          ? FieldValue.arrayRemove([_myUid])
+          : FieldValue.arrayUnion([_myUid]),
+      'likesCount': FieldValue.increment(wasLiked ? -1 : 1),
+    });
+
+    if (mounted) setState(() => _liking = false);
+  }
+
+  String _fmt(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return '$n';
+  }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // AI Görseli
+        // Görsel
         Image.network(
-          imageUrl,
+          widget.imageUrl,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+          loadingBuilder: (_, child, loading) {
+            if (loading == null) return child;
+            return const ColoredBox(
+              color: Colors.black,
+              child:
+                  Center(child: CircularProgressIndicator(color: Colors.cyanAccent)),
+            );
+          },
+          errorBuilder: (_, __, ___) => const ColoredBox(
+            color: Colors.black,
+            child: Center(
+                child: Icon(Icons.broken_image, color: Colors.white24, size: 60)),
+          ),
         ),
 
-        // Alt Karartma
+        // Alt gradient
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [Colors.transparent, Colors.black87],
+              stops: [0.5, 1.0],
             ),
           ),
         ),
 
-        // Prompt Yazısı
+        // Sol alt — kullanıcı ve prompt
         Positioned(
-          left: 10,
-          bottom: 10,
-          right: 10,
-          child: Text(
-            prompt,
-            style: const TextStyle(color: Colors.white, fontSize: 12),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          left: 15,
+          right: 85,
+          bottom: 30,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.cyanAccent,
+                    child: Icon(Icons.person, size: 18, color: Colors.black),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _username.isEmpty ? '...' : '@$_username',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.prompt,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
+
+        // Sağ — butonlar
+        Positioned(
+          right: 12,
+          bottom: 30,
+          child: Column(
+            children: [
+              // Like
+              GestureDetector(
+                onTap: _toggleLike,
+                child: Column(
+                  children: [
+                    Icon(
+                      _isLiked ? Icons.favorite : Icons.favorite_border,
+                      color: _isLiked ? Colors.redAccent : Colors.white,
+                      size: 34,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _fmt(_likedBy.length),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              const _ActionBtn(icon: Icons.comment_rounded, label: 'Yorum'),
+              const SizedBox(height: 22),
+              const _ActionBtn(icon: Icons.share_rounded, label: 'Paylaş'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _ActionBtn({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white, size: 30),
+        const SizedBox(height: 3),
+        Text(label,
+            style: const TextStyle(color: Colors.white, fontSize: 11)),
       ],
     );
   }

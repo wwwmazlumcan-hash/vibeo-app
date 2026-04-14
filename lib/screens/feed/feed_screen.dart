@@ -53,6 +53,7 @@ class FeedScreen extends StatelessWidget {
                 imageUrl: data['imageUrl'] ?? '',
                 prompt: data['prompt'] ?? 'AI Vibeo',
                 userId: data['userId'] ?? 'Unknown',
+                postId: docs[index].id,
               );
             },
           );
