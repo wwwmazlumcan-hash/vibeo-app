@@ -2,30 +2,29 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Kullanıcılar: sadece kendi profilini düzenleyebilir
+    // Kullanıcılar
     match /users/{userId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
+      // Sahibi her alanı günceller; diğer kullanıcılar sadece points güncelleyebilir (like ödülü için)
+      allow update: if request.auth != null &&
+                    (request.auth.uid == userId ||
+                     request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['points', 'pointsHistory']));
       allow delete: if false;
     }
 
-    // Postlar: giriş yapmış herkes okuyabilir, sadece sahibi silebilir
+    // Postlar
     match /posts/{postId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
                     && request.resource.data.userId == request.auth.uid
                     && request.resource.data.keys().hasAll(['userId', 'imageUrl', 'prompt', 'createdAt']);
-      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
-    }
-
-    // Videolar: giriş yapmış herkes okuyabilir
-    match /videos/{videoId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
-                    && request.resource.data.userId == request.auth.uid;
-      allow update: if request.auth != null;
+      // Sahibi her alanı, başkaları sadece like/report alanlarını güncelleyebilir
+      allow update: if request.auth != null &&
+                    (resource.data.userId == request.auth.uid ||
+                     request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['likedBy', 'likesCount', 'reportCount']));
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
 
       // Yorumlar
@@ -35,6 +34,31 @@ service cloud.firestore {
                       && request.resource.data.userId == request.auth.uid;
         allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
       }
+    }
+
+    // Chatler: sadece katılımcılar okuyabilir/yazabilir
+    match /chats/{chatId} {
+      allow read, write: if request.auth != null &&
+                        (resource == null ||
+                         request.auth.uid in resource.data.participants);
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null &&
+                    request.auth.uid in
+                      get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        // Katılımcılar mesaj ekleyebilir (AI İkiz için senderId başkası da olabilir)
+        allow create: if request.auth != null &&
+                      request.auth.uid in
+                        get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow delete: if request.auth != null &&
+                      resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    // Şikayet bildirimleri (sadece oluşturma, okuma admin)
+    match /reports/{reportId} {
+      allow create: if request.auth != null;
+      allow read: if false;
     }
   }
 }

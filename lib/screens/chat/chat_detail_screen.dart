@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/twin_service.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String chatId;
@@ -43,6 +44,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       'lastMessage': text,
       'lastMessageAt': FieldValue.serverTimestamp(),
     });
+
+    // AI İkiz: alıcı offline ve twin aktifse otomatik yanıt üret
+    // Arka planda çalışsın, UI beklemesin
+    TwinService.maybeReply(
+      chatId: widget.chatId,
+      recipientUid: widget.otherUid,
+      incomingMessage: text,
+    );
 
     // Scroll to bottom
     await Future.delayed(const Duration(milliseconds: 100));
@@ -125,6 +134,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       text: d['text'] ?? '',
                       isMe: isMe,
                       time: (d['createdAt'] as Timestamp?)?.toDate(),
+                      isAiTwin: (d['isAiTwin'] ?? false) as bool,
                     );
                   },
                 );
@@ -191,11 +201,21 @@ class _MessageBubble extends StatelessWidget {
   final String text;
   final bool isMe;
   final DateTime? time;
+  final bool isAiTwin;
 
-  const _MessageBubble({required this.text, required this.isMe, this.time});
+  const _MessageBubble({
+    required this.text,
+    required this.isMe,
+    this.time,
+    this.isAiTwin = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final bgColor = isAiTwin
+        ? Colors.purple.shade900.withValues(alpha: 0.6)
+        : (isMe ? Colors.cyanAccent : Colors.white12);
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -204,27 +224,52 @@ class _MessageBubble extends StatelessWidget {
         constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.72),
         decoration: BoxDecoration(
-          color: isMe ? Colors.cyanAccent : Colors.white12,
+          color: bgColor,
           borderRadius: BorderRadius.circular(18).copyWith(
             bottomRight: isMe ? const Radius.circular(4) : null,
             bottomLeft: !isMe ? const Radius.circular(4) : null,
           ),
+          border: isAiTwin
+              ? Border.all(color: Colors.purpleAccent.withValues(alpha: 0.5))
+              : null,
         ),
         child: Column(
           crossAxisAlignment:
               isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
+            if (isAiTwin) ...[
+              const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('🤖', style: TextStyle(fontSize: 10)),
+                  SizedBox(width: 4),
+                  Text('AI İkiz',
+                      style: TextStyle(
+                        color: Colors.purpleAccent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      )),
+                ],
+              ),
+              const SizedBox(height: 4),
+            ],
             Text(
               text,
               style: TextStyle(
-                  color: isMe ? Colors.black : Colors.white, fontSize: 14),
+                color: isAiTwin
+                    ? Colors.white
+                    : (isMe ? Colors.black : Colors.white),
+                fontSize: 14,
+              ),
             ),
             if (time != null) ...[
               const SizedBox(height: 4),
               Text(
                 '${time!.hour.toString().padLeft(2, '0')}:${time!.minute.toString().padLeft(2, '0')}',
                 style: TextStyle(
-                    color: isMe ? Colors.black54 : Colors.white38,
+                    color: isAiTwin
+                        ? Colors.white38
+                        : (isMe ? Colors.black54 : Colors.white38),
                     fontSize: 10),
               ),
             ],

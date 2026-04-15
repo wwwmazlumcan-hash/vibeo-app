@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../earn/earn_screen.dart';
 import '../fitness/fitness_screen.dart';
+import '../twin/twin_setup_screen.dart';
 import '../../services/points_service.dart';
 
 class HubScreen extends StatelessWidget {
@@ -96,6 +97,15 @@ class HubScreen extends StatelessWidget {
               childAspectRatio: 1.2,
               children: [
                 _FeatureCard(
+                  icon: '🤖',
+                  title: 'AI İkiz',
+                  subtitle: 'Dijital klonun\nsenin yerine yanıtlar',
+                  gradient: const [Color(0xFF1a0033), Color(0xFF330066)],
+                  borderColor: Colors.purpleAccent,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const TwinSetupScreen())),
+                ),
+                _FeatureCard(
                   icon: '🏆',
                   title: 'Kazan',
                   subtitle: 'XP, rozetler\nve liderlik tablosu',
@@ -117,8 +127,8 @@ class HubScreen extends StatelessWidget {
                   icon: '🛡️',
                   title: 'Güvenli Alan',
                   subtitle: 'AI moderasyon\naktif',
-                  gradient: const [Color(0xFF1a001a), Color(0xFF330033)],
-                  borderColor: Colors.purpleAccent,
+                  gradient: const [Color(0xFF330000), Color(0xFF660033)],
+                  borderColor: Colors.redAccent,
                   onTap: () => _showModInfo(context),
                 ),
                 _FeatureCard(
