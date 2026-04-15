@@ -6,7 +6,7 @@ import 'presence_service.dart';
 /// Builds a persona from user data and generates replies when user is offline.
 class TwinService {
   /// Fetches a user's twin persona. Returns null if twin is disabled.
-  static Future<_Persona?> loadPersona(String uid) async {
+  static Future<_Persona?> _loadPersona(String uid) async {
     final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
     if (!doc.exists) return null;
     final data = doc.data() ?? {};
@@ -57,7 +57,7 @@ class TwinService {
     if (!PresenceService.isOffline(lastActive)) return null;
 
     // 2. Load persona
-    final persona = await loadPersona(recipientUid);
+    final persona = await _loadPersona(recipientUid);
     if (persona == null) return null;
 
     // 3. Get conversation context
