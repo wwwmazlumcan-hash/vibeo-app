@@ -11,6 +11,8 @@ import 'providers/user_provider.dart';
 import 'providers/video_provider.dart';
 import 'navigation/main_navigation.dart';
 import 'screens/auth/login_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/onboarding/onboarding_screen.dart';
 import 'services/connectivity_service.dart';
 import 'services/presence_service.dart';
 
@@ -210,7 +212,14 @@ class _AuthGate extends StatelessWidget {
         // Çıkış yapıldıysa presence'i durdur
         PresenceService.stop();
 
-        return const LoginScreen();
+        return FutureBuilder<SharedPreferences>(
+          future: SharedPreferences.getInstance(),
+          builder: (_, snap) {
+            if (!snap.hasData) return const SizedBox.shrink();
+            final done = snap.data!.getBool('onboarding_done') ?? false;
+            return done ? const LoginScreen() : const OnboardingScreen();
+          },
+        );
       },
     );
   }

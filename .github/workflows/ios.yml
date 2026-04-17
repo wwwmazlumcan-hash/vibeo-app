@@ -3,7 +3,7 @@ name: iOS Build & Deploy
 on:
   push:
     branches: [main, master]
-  workflow_dispatch: # Manuel tetikleme butonu
+  workflow_dispatch:
 
 jobs:
   build-ios:
@@ -18,17 +18,22 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: false
+          cache: true
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Generate native splash
+        run: dart run flutter_native_splash:create
+
+      - name: Generate launcher icons
+        run: dart run flutter_launcher_icons
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build iOS (no codesign)
-        run: |
-          flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign
 
       - name: Create IPA
         run: |

@@ -1,7 +1,7 @@
 name: vibeo
-description: Vibeo - Short Video Sharing App
+description: Vibeo - AI destekli sosyal içerik platformu
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -41,6 +41,21 @@ dependencies:
   # HTTP requests (AI text API)
   http: ^1.2.1
 
+  # Native splash screen
+  flutter_native_splash: ^2.4.1
+
+  # URL launcher (privacy policy, terms)
+  url_launcher: ^6.3.0
+
+  # Share content
+  share_plus: ^10.0.0
+
+  # In-app review
+  in_app_review: ^2.0.9
+
+  # Onboarding tamamlandı flag'i
+  shared_preferences: ^2.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -55,8 +70,18 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: "assets/icon/app_icon.png"
-    background_color: "#000000"
+    background_color: "#03070D"
     theme_color: "#00FFFF"
+
+flutter_native_splash:
+  color: "#03070D"
+  image: assets/icon/app_icon.png
+  android_12:
+    color: "#03070D"
+    icon_background_color: "#03070D"
+    image: assets/icon/app_icon.png
+  web: false
+  fullscreen: false
 
 flutter:
   uses-material-design: true

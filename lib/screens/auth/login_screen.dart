@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'signup_screen.dart';
+import '../legal/privacy_policy_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -131,6 +132,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   MaterialPageRoute(builder: (_) => const SignupScreen()),
                 ),
                 child: const Text('Hesabın yok mu? Kayıt Ol'),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(
+                            builder: (_) => const PrivacyPolicyScreen())),
+                    child: const Text('Gizlilik',
+                        style: TextStyle(fontSize: 11, color: Colors.white38)),
+                  ),
+                  const Text('·', style: TextStyle(color: Colors.white24)),
+                  TextButton(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const TermsScreen())),
+                    child: const Text('Koşullar',
+                        style: TextStyle(fontSize: 11, color: Colors.white38)),
+                  ),
+                ],
               ),
             ],
           ),
