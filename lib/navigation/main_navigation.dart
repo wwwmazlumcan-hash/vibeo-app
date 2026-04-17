@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../screens/ai/ai_studio_screen.dart';
-import '../screens/chat/chat_list_screen.dart';
 import '../screens/feed/feed_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/search/search_screen.dart';
+import '../screens/vibes/vibes_screen.dart';
 import '../services/notification_service.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -22,20 +22,20 @@ class _MainNavigationState extends State<MainNavigation> {
 
   final List<Widget> _pages = const [
     FeedScreen(),
-    SearchScreen(),
+    VibesScreen(),
     AiStudioScreen(),
-    ChatListScreen(),
+    SearchScreen(),
     NotificationsScreen(),
     ProfileScreen(),
   ];
 
   final List<_NavItem> _items = const [
-    _NavItem(Icons.home_rounded),
-    _NavItem(Icons.explore_outlined),
-    _NavItem(Icons.auto_awesome),
-    _NavItem(Icons.chat_bubble_outline),
-    _NavItem(Icons.notifications_none_rounded),
-    _NavItem(Icons.person_outline),
+    _NavItem(Icons.home_rounded, 'Ana'),
+    _NavItem(Icons.play_circle_outline_rounded, 'Vibes'),
+    _NavItem(Icons.auto_awesome, 'AI'),
+    _NavItem(Icons.explore_outlined, 'Keşfet'),
+    _NavItem(Icons.notifications_none_rounded, 'Bildirim'),
+    _NavItem(Icons.person_outline, 'Profil'),
   ];
 
   @override
@@ -197,6 +197,7 @@ class _NavIcon extends StatelessWidget {
 
 class _NavItem {
   final IconData icon;
+  final String label;
 
-  const _NavItem(this.icon);
+  const _NavItem(this.icon, [this.label = '']);
 }

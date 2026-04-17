@@ -8,6 +8,10 @@ import 'governance_screen.dart';
 import 'liquid_identity_screen.dart';
 import 'synapse_room_screen.dart';
 import '../twin/twin_setup_screen.dart';
+import '../challenges/challenges_screen.dart';
+import '../battle/prompt_battle_screen.dart';
+import '../dreamchain/dream_chain_screen.dart';
+import '../collections/collections_screen.dart';
 import '../../services/points_service.dart';
 
 class HubScreen extends StatelessWidget {
@@ -85,6 +89,58 @@ class HubScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 24),
+            const _SectionTitle('🆕 Yeni Özellikler'),
+            const SizedBox(height: 12),
+
+            // New features row
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.2,
+              children: [
+                _FeatureCard(
+                  icon: '⚔️',
+                  title: 'Prompt Battle',
+                  subtitle: 'AI sanatınla\nrakibine meydan oku!',
+                  gradient: const [Color(0xFF1a0a00), Color(0xFF331500)],
+                  borderColor: Colors.orangeAccent,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const PromptBattleScreen())),
+                ),
+                _FeatureCard(
+                  icon: '🔗',
+                  title: 'Dream Chain',
+                  subtitle: 'Zincir oluştur,\nherkes devam etsin',
+                  gradient: const [Color(0xFF1a0030), Color(0xFF200050)],
+                  borderColor: Colors.purpleAccent,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const DreamChainScreen())),
+                ),
+                _FeatureCard(
+                  icon: '🏆',
+                  title: 'Challenges',
+                  subtitle: 'Haftalık yarışma,\nXP kazan',
+                  gradient: const [Color(0xFF001a2a), Color(0xFF003355)],
+                  borderColor: Colors.cyanAccent,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ChallengesScreen())),
+                ),
+                _FeatureCard(
+                  icon: '📌',
+                  title: 'Koleksiyonlar',
+                  subtitle: 'AI görsellerini\npano şeklinde sakla',
+                  gradient: const [Color(0xFF001a10), Color(0xFF003320)],
+                  borderColor: Colors.greenAccent,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const CollectionsScreen())),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
             const _SectionTitle('Özellikler'),
             const SizedBox(height: 12),
 

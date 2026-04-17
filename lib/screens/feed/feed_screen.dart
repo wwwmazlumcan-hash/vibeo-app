@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../widgets/shimmer_box.dart';
+import '../../widgets/stories_bar.dart';
 import '../../services/points_service.dart';
 import '../comments/comments_screen.dart';
 import '../post/post_detail_screen.dart';
+import '../challenges/challenges_screen.dart';
 
 class FeedScreen extends StatelessWidget {
   const FeedScreen({super.key});
@@ -35,14 +37,22 @@ class FeedScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+
+            // Stories bar
+            const StoriesBar(),
+            const SizedBox(height: 4),
+
+            // Challenge banner
+            _ChallengeBanner(),
+            const SizedBox(height: 8),
 
             // Headline
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Text(
                       "Bugün senin vibe'ına uygun\niçerikler",
                       style: TextStyle(
@@ -181,6 +191,52 @@ class _GlowButton extends StatelessWidget {
         ],
       ),
       child: Icon(icon, color: Colors.cyanAccent, size: 16),
+    );
+  }
+}
+
+// ─── CHALLENGE BANNER ─────────────────────────────────────────────────────────
+class _ChallengeBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ChallengesScreen()),
+      ),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: LinearGradient(colors: [
+            Colors.cyanAccent.withValues(alpha: 0.15),
+            Colors.purpleAccent.withValues(alpha: 0.1),
+          ]),
+          border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            const Text('🏆', style: TextStyle(fontSize: 20)),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Haftanın Challenge',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13)),
+                  Text('Neon Şehir  •  ⏰ 2 gün kaldı  •  500 XP',
+                      style: TextStyle(color: Colors.white54, fontSize: 11)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.cyanAccent, size: 18),
+          ],
+        ),
+      ),
     );
   }
 }
