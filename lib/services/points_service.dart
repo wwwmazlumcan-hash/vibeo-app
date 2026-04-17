@@ -12,17 +12,37 @@ class PointsService {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
+    final now = DateTime.now();
+    // ISO week key: yyyy-Www  (e.g. 2026-W16)
+    final weekNum = _isoWeek(now);
+    final weekKey = '${now.year}-W${weekNum.toString().padLeft(2, '0')}';
+    // Month key: yyyy-MM
+    final monthKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
     final ref = FirebaseFirestore.instance.collection('users').doc(uid);
     await ref.update({
       'points': FieldValue.increment(points),
+      'weeklyPoints.$weekKey': FieldValue.increment(points),
+      'monthlyPoints.$monthKey': FieldValue.increment(points),
       'pointsHistory': FieldValue.arrayUnion([
         {
           'amount': points,
           'reason': reason,
-          'at': DateTime.now().toIso8601String(),
+          'at': now.toIso8601String(),
         }
       ]),
     });
+  }
+
+  /// ISO 8601 week number.
+  static int _isoWeek(DateTime date) {
+    final thursday =
+        date.subtract(Duration(days: date.weekday - DateTime.thursday));
+    final firstThursday = DateTime(thursday.year, 1, 1);
+    final correction =
+        (firstThursday.weekday - DateTime.thursday + 7) % 7;
+    return ((thursday.difference(firstThursday).inDays + correction) ~/ 7) + 1;
   }
 
   static Future<int> getPoints() async {

@@ -13,6 +13,9 @@ import '../battle/prompt_battle_screen.dart';
 import '../dreamchain/dream_chain_screen.dart';
 import '../collections/collections_screen.dart';
 import '../social/social_os_screen.dart';
+import '../mood/mood_vibe_screen.dart';
+import '../leaderboard/leaderboard_screen.dart';
+import '../timecapsule/time_capsule_screen.dart';
 import '../../services/points_service.dart';
 
 class HubScreen extends StatelessWidget {
@@ -146,6 +149,39 @@ class HubScreen extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) => const CollectionsScreen())),
                 ),
+                _FeatureCard(
+                  icon: '🎨',
+                  title: 'Mood Vibe',
+                  subtitle: 'Ruh haline göre\nAI görsel + müzik',
+                  gradient: const [Color(0xFF1a0030), Color(0xFF2d0050)],
+                  borderColor: Colors.cyanAccent,
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const MoodVibeScreen())),
+                ),
+                _FeatureCard(
+                  icon: '🏅',
+                  title: 'Liderlik',
+                  subtitle: 'Tüm kullanıcılar\narasında sıralama',
+                  gradient: const [Color(0xFF1a1200), Color(0xFF332400)],
+                  borderColor: Colors.amber,
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const LeaderboardScreen())),
+                ),
+                _FeatureCard(
+                  icon: '⏳',
+                  title: 'Time Capsule',
+                  subtitle: 'Geleceğe kilitli\nAI görsellerini gönder',
+                  gradient: const [Color(0xFF0d1a2e), Color(0xFF1a2e4a)],
+                  borderColor: Colors.lightBlueAccent,
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const TimeCapsuleScreen())),
+                ),
               ],
             ),
 
@@ -176,7 +212,7 @@ class HubScreen extends StatelessWidget {
                 _FeatureCard(
                   icon: '🏆',
                   title: 'Kazan',
-                  subtitle: 'XP, rozetler\nve liderlik tablosu',
+                  subtitle: 'XP, rozetler\nve görev takibi',
                   gradient: const [Color(0xFF1a1a00), Color(0xFF333300)],
                   borderColor: Colors.amber,
                   onTap: () => Navigator.push(context,
