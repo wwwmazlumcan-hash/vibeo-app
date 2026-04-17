@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/block_service.dart';
 import '../../services/bookmark_service.dart';
 import '../../services/hashtag_service.dart';
 import '../../services/reality_layer_service.dart';
@@ -16,6 +17,7 @@ class PostDetailScreen extends StatefulWidget {
   final String imageUrl;
   final String prompt;
   final String username;
+  final String userId;
 
   const PostDetailScreen({
     super.key,
@@ -23,6 +25,7 @@ class PostDetailScreen extends StatefulWidget {
     required this.imageUrl,
     required this.prompt,
     required this.username,
+    this.userId = '',
   });
 
   @override
@@ -208,6 +211,176 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
+  void _showPostMenu(BuildContext context) {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    final isMine = myUid == widget.userId;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B141D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.share_outlined,
+                  color: Colors.cyanAccent),
+              title: const Text('Paylaş',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _share();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.link,
+                  color: Colors.cyanAccent),
+              title: const Text('Linki Kopyala',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        'https://vibeo.app/p/${widget.postId} kopyalandı'),
+                  ),
+                );
+              },
+            ),
+            if (isMine)
+              ListTile(
+                leading: const Icon(Icons.delete_outline,
+                    color: Colors.redAccent),
+                title: const Text('Paylaşımı Sil',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Paylaşımı sil?'),
+                      content: const Text(
+                          'Bu işlem geri alınamaz. Yorumlar ve etkileşimler de silinir.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Vazgeç'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                          ),
+                          child: const Text('Sil'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm != true) return;
+                  await FirebaseFirestore.instance
+                      .collection('posts')
+                      .doc(widget.postId)
+                      .delete();
+                  if (!mounted) return;
+                  Navigator.pop(context);
+                },
+              )
+            else ...[
+              ListTile(
+                leading: const Icon(Icons.volume_off,
+                    color: Colors.orangeAccent),
+                title: const Text('Kullanıcıyı Sessize Al',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await BlockService.muteUser(widget.userId);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Kullanıcı sessize alındı')),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.block,
+                    color: Colors.redAccent),
+                title: const Text('Kullanıcıyı Engelle',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await BlockService.blockUser(widget.userId);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Kullanıcı engellendi')),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.flag_outlined,
+                    color: Colors.amber),
+                title: const Text('Paylaşımı Şikayet Et',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showReportDialog();
+                },
+              ),
+            ],
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportDialog() {
+    const reasons = [
+      'Spam',
+      'Taciz veya zorbalık',
+      'Uygunsuz içerik',
+      'Yanıltıcı bilgi',
+      'Telif ihlali',
+      'Diğer',
+    ];
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Şikayet nedeni'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: reasons
+              .map((r) => ListTile(
+                    title: Text(r,
+                        style: const TextStyle(color: Colors.white)),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await BlockService.reportPost(widget.postId, r);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content:
+                                Text('Şikayetin alındı. İnceleyeceğiz.')),
+                      );
+                    },
+                  ))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
   Future<void> _share() async {
     if (_remixedUrl == null) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -264,6 +437,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         title: Text('@${widget.username}',
             style: const TextStyle(
                 color: Colors.white, fontWeight: FontWeight.w600)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onPressed: () => _showPostMenu(context),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),

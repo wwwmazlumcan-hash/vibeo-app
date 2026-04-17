@@ -16,6 +16,9 @@ import '../legal/privacy_policy_screen.dart';
 import '../social/social_os_screen.dart';
 import 'follow_list_screen.dart';
 import 'saved_posts_screen.dart';
+import '../settings/settings_screen.dart';
+import '../settings/edit_profile_screen.dart';
+import '../../services/block_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
@@ -237,6 +240,143 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showUserActions(String targetUid) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B141D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.volume_off,
+                  color: Colors.orangeAccent),
+              title: const Text('Sessize Al',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Paylaşımları feed\'inde görünmez',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await BlockService.muteUser(targetUid);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Kullanıcı sessize alındı')),
+                );
+              },
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.block, color: Colors.redAccent),
+              title: const Text('Engelle',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Seni takip edemez, mesaj atamaz',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Engellemek istediğinden emin misin?'),
+                    content: const Text(
+                      'Bu kullanıcı seni takip edemeyecek, mesaj atamayacak ve paylaşımlarını göremeyecek.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Vazgeç'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                        ),
+                        child: const Text('Engelle'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm != true) return;
+                await BlockService.blockUser(targetUid);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Kullanıcı engellendi')),
+                );
+              },
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.flag_outlined, color: Colors.amber),
+              title: const Text('Şikayet Et',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Spam, taciz veya uygunsuz içerik',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showReportDialog(targetUid);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportDialog(String targetUid) {
+    const reasons = [
+      'Spam',
+      'Taciz veya zorbalık',
+      'Uygunsuz içerik',
+      'Sahte hesap',
+      'Telif ihlali',
+      'Diğer',
+    ];
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Şikayet nedeni'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: reasons
+              .map((r) => ListTile(
+                    title: Text(r,
+                        style: const TextStyle(color: Colors.white)),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await BlockService.reportUser(targetUid, r);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text(
+                                'Şikayetin alındı. İnceleyeceğiz.')),
+                      );
+                    },
+                  ))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
   void _openFollowList({required bool showFollowers}) {
     final profileUid = _profileUid;
     if (profileUid == null) return;
@@ -273,11 +413,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 22,
                             fontWeight: FontWeight.bold)),
                     const Spacer(),
-                    if (_isOwnProfile)
+                    if (_isOwnProfile) ...[
                       IconButton(
-                        icon: const Icon(Icons.logout, color: Colors.white54),
-                        onPressed: () => FirebaseAuth.instance.signOut(),
+                        icon: const Icon(Icons.edit_outlined,
+                            color: Colors.white54),
+                        tooltip: 'Profili Düzenle',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const EditProfileScreen()),
+                        ),
                       ),
+                      IconButton(
+                        icon: const Icon(Icons.settings_outlined,
+                            color: Colors.white54),
+                        tooltip: 'Ayarlar',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const SettingsScreen()),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -363,39 +520,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 12),
                     // Follow button (only for other users)
                     if (!_isOwnProfile)
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        child: ElevatedButton(
-                          onPressed: _followLoading
-                              ? null
-                              : (profileUid == null
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            child: ElevatedButton(
+                              onPressed: _followLoading
                                   ? null
-                                  : () => _toggleFollow(profileUid)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _isFollowing
-                                ? Colors.transparent
-                                : Colors.cyanAccent,
-                            side: const BorderSide(
-                              color: Colors.cyanAccent,
-                              width: 2,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 8,
+                                  : (profileUid == null
+                                      ? null
+                                      : () => _toggleFollow(profileUid)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isFollowing
+                                    ? Colors.transparent
+                                    : Colors.cyanAccent,
+                                side: const BorderSide(
+                                  color: Colors.cyanAccent,
+                                  width: 2,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 8,
+                                ),
+                              ),
+                              child: Text(
+                                _followLoading
+                                    ? '...'
+                                    : (_isFollowing
+                                        ? 'Takibi Bırak'
+                                        : 'Takip Et'),
+                                style: TextStyle(
+                                  color: _isFollowing
+                                      ? Colors.cyanAccent
+                                      : Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
-                          child: Text(
-                            _followLoading
-                                ? '...'
-                                : (_isFollowing ? 'Takibi Bırak' : 'Takip Et'),
-                            style: TextStyle(
-                              color: _isFollowing
-                                  ? Colors.cyanAccent
-                                  : Colors.black,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.more_horiz,
+                                color: Colors.white70),
+                            tooltip: 'Daha fazla',
+                            onPressed: profileUid == null
+                                ? null
+                                : () => _showUserActions(profileUid),
                           ),
-                        ),
+                        ],
                       ),
                   ],
                 ),

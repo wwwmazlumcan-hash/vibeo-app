@@ -288,6 +288,99 @@ class _CommentTileState extends State<_CommentTile> {
     }
   }
 
+  void _showMenu(BuildContext context, String? myUid) {
+    final isMine = myUid == widget.userId;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B141D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (isMine)
+              ListTile(
+                leading: const Icon(Icons.delete_outline,
+                    color: Colors.redAccent),
+                title: const Text('Yorumu Sil',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _deleteComment();
+                },
+              )
+            else ...[
+              ListTile(
+                leading: const Icon(Icons.reply,
+                    color: Colors.cyanAccent),
+                title: const Text('Yanıtla',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content:
+                          Text('@${widget.username} kullanıcısına yanıtla'),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.flag_outlined,
+                    color: Colors.amber),
+                title: const Text('Şikayet Et',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await FirebaseFirestore.instance
+                      .collection('reports')
+                      .add({
+                    'type': 'comment',
+                    'postId': widget.postId,
+                    'commentId': widget.commentId,
+                    'reason': 'Uygunsuz yorum',
+                    'reporterUid': myUid,
+                    'createdAt': FieldValue.serverTimestamp(),
+                  });
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Yorum şikayet edildi')),
+                  );
+                },
+              ),
+            ],
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteComment() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId)
+          .collection('comments')
+          .doc(widget.commentId)
+          .delete();
+    } catch (e) {
+      debugPrint('Error deleting comment: $e');
+    }
+  }
+
   Map<String, int> _getReactionCounts() {
     final counts = <String, int>{};
     for (var emoji in widget.reactions.values) {
@@ -357,6 +450,14 @@ class _CommentTileState extends State<_CommentTile> {
                     setState(() => _showReactionPicker = !_showReactionPicker),
                 child: Icon(Icons.emoji_emotions_outlined,
                     color: Colors.cyanAccent.withValues(alpha: 0.6), size: 18),
+              ),
+              const SizedBox(width: 10),
+              // Context menu (delete / report)
+              GestureDetector(
+                onTap: () => _showMenu(context, myUid),
+                child: Icon(Icons.more_vert,
+                    color: Colors.cyanAccent.withValues(alpha: 0.5),
+                    size: 18),
               ),
             ],
           ),

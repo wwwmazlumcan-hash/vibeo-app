@@ -16,6 +16,7 @@ import '../social/social_os_screen.dart';
 import '../mood/mood_vibe_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../timecapsule/time_capsule_screen.dart';
+import '../settings/settings_screen.dart';
 import '../../services/points_service.dart';
 
 class HubScreen extends StatelessWidget {
@@ -28,6 +29,16 @@ class HubScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('VİBEO HUB'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Ayarlar',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
