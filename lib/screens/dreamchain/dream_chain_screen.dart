@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/points_service.dart';
+import '../../services/user_service.dart';
 
 class DreamChainScreen extends StatefulWidget {
   const DreamChainScreen({super.key});
@@ -71,17 +72,16 @@ class _ActiveChains extends StatelessWidget {
       builder: (context, snap) {
         final docs = snap.data?.docs ?? [];
         if (docs.isEmpty) {
-          return Center(
+          return const Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('🔗', style: TextStyle(fontSize: 56)),
-                const SizedBox(height: 16),
-                const Text('Henüz aktif zincir yok',
-                    style: TextStyle(
-                        color: Colors.white, fontSize: 18)),
-                const SizedBox(height: 8),
-                const Text('İlk zinciri sen başlat!',
+                Text('🔗', style: TextStyle(fontSize: 56)),
+                SizedBox(height: 16),
+                Text('Henüz aktif zincir yok',
+                    style: TextStyle(color: Colors.white, fontSize: 18)),
+                SizedBox(height: 8),
+                Text('İlk zinciri sen başlat!',
                     style: TextStyle(color: Colors.white54)),
               ],
             ),
@@ -113,8 +113,7 @@ class _ChainCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         color: const Color(0xFF0B141D),
-        border: Border.all(
-            color: Colors.purpleAccent.withValues(alpha: 0.25)),
+        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
               color: Colors.purpleAccent.withValues(alpha: 0.08),
@@ -146,8 +145,8 @@ class _ChainCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.purpleAccent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
@@ -180,9 +179,7 @@ class _ChainCard extends StatelessWidget {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: Image.network(imgUrl,
-                            width: 90,
-                            height: 90,
-                            fit: BoxFit.cover),
+                            width: 90, height: 90, fit: BoxFit.cover),
                       ),
                       if (i < steps.length - 1)
                         const Padding(
@@ -262,12 +259,7 @@ class _StartChainState extends State<_StartChain> {
     setState(() => _loading = true);
     try {
       final me = FirebaseAuth.instance.currentUser!;
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(me.uid)
-          .get();
-      final username =
-          (userDoc.data() as Map<String, dynamic>?)?['username'] ?? 'anonim';
+      final username = await UserService().getUsername(me.uid);
 
       await FirebaseFirestore.instance.collection('dream_chains').add({
         'theme': _themeCtrl.text.trim(),
@@ -348,8 +340,8 @@ class _StartChainState extends State<_StartChain> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               color: Colors.purpleAccent.withValues(alpha: 0.1),
-              border: Border.all(
-                  color: Colors.purpleAccent.withValues(alpha: 0.3)),
+              border:
+                  Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
             ),
             child: const Row(
               children: [
@@ -359,9 +351,7 @@ class _StartChainState extends State<_StartChain> {
                   child: Text(
                     'Sen bir sahne yarat → Başkaları devam ettirir → Epik bir hikaye zinciri oluşur!',
                     style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        height: 1.5),
+                        color: Colors.white70, fontSize: 12, height: 1.5),
                   ),
                 ),
               ],
@@ -373,8 +363,7 @@ class _StartChainState extends State<_StartChain> {
             style: const TextStyle(color: Colors.white),
             decoration: const InputDecoration(
               hintText: 'Zincir teması (ör: "Geleceğin Şehri")',
-              prefixIcon:
-                  Icon(Icons.link, color: Colors.purpleAccent),
+              prefixIcon: Icon(Icons.link, color: Colors.purpleAccent),
             ),
           ),
           const SizedBox(height: 12),
@@ -384,8 +373,7 @@ class _StartChainState extends State<_StartChain> {
             maxLines: 2,
             decoration: const InputDecoration(
               hintText: 'İlk sahneyi yaz...',
-              prefixIcon:
-                  Icon(Icons.edit_outlined, color: Colors.purpleAccent),
+              prefixIcon: Icon(Icons.edit_outlined, color: Colors.purpleAccent),
             ),
           ),
           const SizedBox(height: 12),
@@ -427,7 +415,8 @@ class _StartChainState extends State<_StartChain> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: (_previewUrl == null || _loading) ? null : _createChain,
+                  onPressed:
+                      (_previewUrl == null || _loading) ? null : _createChain,
                   icon: const Icon(Icons.add_link, size: 16),
                   label: const Text('Zincir Başlat'),
                   style: ElevatedButton.styleFrom(
@@ -484,12 +473,7 @@ class _ContinueChainScreenState extends State<_ContinueChainScreen> {
     setState(() => _loading = true);
     try {
       final me = FirebaseAuth.instance.currentUser!;
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(me.uid)
-          .get();
-      final username =
-          (userDoc.data() as Map<String, dynamic>?)?['username'] ?? 'anonim';
+      final username = await UserService().getUsername(me.uid);
 
       final newStep = {
         'userId': me.uid,
@@ -559,9 +543,7 @@ class _ContinueChainScreenState extends State<_ContinueChainScreen> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: Image.network(url,
-                                width: 90,
-                                height: 90,
-                                fit: BoxFit.cover),
+                                width: 90, height: 90, fit: BoxFit.cover),
                           ),
                           const SizedBox(height: 4),
                           Text('@${step['username'] ?? '?'}',
@@ -590,9 +572,7 @@ class _ContinueChainScreenState extends State<_ContinueChainScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Image.network(_previewUrl!,
-                    width: double.infinity,
-                    height: 200,
-                    fit: BoxFit.cover),
+                    width: double.infinity, height: 200, fit: BoxFit.cover),
               ),
               const SizedBox(height: 12),
             ],
@@ -616,17 +596,15 @@ class _ContinueChainScreenState extends State<_ContinueChainScreen> {
                     label: const Text('Oluştur'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.purpleAccent,
-                      side:
-                          const BorderSide(color: Colors.purpleAccent),
+                      side: const BorderSide(color: Colors.purpleAccent),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: (_previewUrl == null || _loading)
-                        ? null
-                        : _addStep,
+                    onPressed:
+                        (_previewUrl == null || _loading) ? null : _addStep,
                     icon: const Icon(Icons.add_link, size: 16),
                     label: const Text('Halka Ekle (+40 XP)'),
                     style: ElevatedButton.styleFrom(

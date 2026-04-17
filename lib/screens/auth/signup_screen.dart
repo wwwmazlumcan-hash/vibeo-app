@@ -48,10 +48,7 @@ class _SignupScreenState extends State<SignupScreen> {
         return;
       }
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set({
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'uid': user.uid,
         'email': email,
         'username': username,
@@ -61,10 +58,16 @@ class _SignupScreenState extends State<SignupScreen> {
         'followersCount': 0,
         'followingCount': 0,
         'videosCount': 0,
+        'followers': <String>[],
+        'following': <String>[],
+        'identityMode': 'fluid',
+        'dopamineDetoxMode': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (!mounted) return;
       _showError(_parseError(e.toString()));
@@ -80,7 +83,9 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   String _parseError(String raw) {
-    if (raw.contains('email-already-in-use')) return 'Bu email zaten kullanımda.';
+    if (raw.contains('email-already-in-use')) {
+      return 'Bu email zaten kullanımda.';
+    }
     if (raw.contains('invalid-email')) return 'Geçersiz email adresi.';
     if (raw.contains('weak-password')) return 'Şifre çok zayıf.';
     return 'Kayıt başarısız. Tekrar dene.';
@@ -147,8 +152,7 @@ class _SignupScreenState extends State<SignupScreen> {
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
                 hintText: 'E-posta',
-                prefixIcon:
-                    Icon(Icons.mail_outline, color: Colors.cyanAccent),
+                prefixIcon: Icon(Icons.mail_outline, color: Colors.cyanAccent),
               ),
             ),
             const SizedBox(height: 14),
@@ -161,8 +165,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 prefixIcon:
                     const Icon(Icons.lock_outline, color: Colors.cyanAccent),
                 suffixIcon: IconButton(
-                  icon: Icon(
-                      _obscure ? Icons.visibility : Icons.visibility_off,
+                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off,
                       color: Colors.white38),
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),

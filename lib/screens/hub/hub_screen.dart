@@ -12,6 +12,7 @@ import '../challenges/challenges_screen.dart';
 import '../battle/prompt_battle_screen.dart';
 import '../dreamchain/dream_chain_screen.dart';
 import '../collections/collections_screen.dart';
+import '../social/social_os_screen.dart';
 import '../../services/points_service.dart';
 
 class HubScreen extends StatelessWidget {
@@ -107,8 +108,10 @@ class HubScreen extends StatelessWidget {
                   subtitle: 'AI sanatınla\nrakibine meydan oku!',
                   gradient: const [Color(0xFF1a0a00), Color(0xFF331500)],
                   borderColor: Colors.orangeAccent,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const PromptBattleScreen())),
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PromptBattleScreen())),
                 ),
                 _FeatureCard(
                   icon: '🔗',
@@ -116,8 +119,10 @@ class HubScreen extends StatelessWidget {
                   subtitle: 'Zincir oluştur,\nherkes devam etsin',
                   gradient: const [Color(0xFF1a0030), Color(0xFF200050)],
                   borderColor: Colors.purpleAccent,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const DreamChainScreen())),
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const DreamChainScreen())),
                 ),
                 _FeatureCard(
                   icon: '🏆',
@@ -125,8 +130,10 @@ class HubScreen extends StatelessWidget {
                   subtitle: 'Haftalık yarışma,\nXP kazan',
                   gradient: const [Color(0xFF001a2a), Color(0xFF003355)],
                   borderColor: Colors.cyanAccent,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const ChallengesScreen())),
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ChallengesScreen())),
                 ),
                 _FeatureCard(
                   icon: '📌',
@@ -134,8 +141,10 @@ class HubScreen extends StatelessWidget {
                   subtitle: 'AI görsellerini\npano şeklinde sakla',
                   gradient: const [Color(0xFF001a10), Color(0xFF003320)],
                   borderColor: Colors.greenAccent,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const CollectionsScreen())),
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CollectionsScreen())),
                 ),
               ],
             ),
@@ -189,6 +198,17 @@ class HubScreen extends StatelessWidget {
                   gradient: const [Color(0xFF330000), Color(0xFF660033)],
                   borderColor: Colors.redAccent,
                   onTap: () => _showModInfo(context),
+                ),
+                _FeatureCard(
+                  icon: '🪐',
+                  title: 'Social OS',
+                  subtitle: 'Orbitler, kapsüller,\nwellness ve kimlik modu',
+                  gradient: const [Color(0xFF071225), Color(0xFF0F2F35)],
+                  borderColor: Colors.cyanAccent,
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const SocialOsScreen())),
                 ),
                 _FeatureCard(
                   icon: '🧠',

@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:share_plus/share_plus.dart';
 import '../screens/comments/comments_screen.dart';
 import '../services/bookmark_service.dart';
 import '../services/moderation_service.dart';
 import '../services/notification_service.dart';
 import '../services/points_service.dart';
 import '../services/reality_layer_service.dart';
+import '../services/user_service.dart';
 import 'user_avatar.dart';
 
 class VideoItem extends StatefulWidget {
@@ -42,6 +46,8 @@ class _VideoItemState extends State<VideoItem> {
   bool _liking = false;
   bool _saved = false;
   bool _saving = false;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+      _likesSubscription;
 
   String get _myUid => FirebaseAuth.instance.currentUser?.uid ?? '';
   bool get _isLiked => _likedBy.contains(_myUid);
@@ -54,6 +60,12 @@ class _VideoItemState extends State<VideoItem> {
     if (widget.postId.isNotEmpty) _listenLikes();
   }
 
+  @override
+  void dispose() {
+    _likesSubscription?.cancel();
+    super.dispose();
+  }
+
   Future<void> _loadSavedStatus() async {
     if (widget.postId.isEmpty || _myUid.isEmpty) return;
     final saved = await BookmarkService.isSaved(widget.postId);
@@ -62,16 +74,17 @@ class _VideoItemState extends State<VideoItem> {
   }
 
   void _loadUsername() async {
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(widget.userId)
-        .get();
+    final fallbackUsername = widget.userId.isEmpty
+        ? 'anonim'
+        : widget.userId.substring(0, widget.userId.length.clamp(0, 6));
+    final preview = await UserService().getUserPreview(
+      widget.userId,
+      fallbackUsername: fallbackUsername,
+    );
     if (!mounted) return;
     setState(() {
-      _username = (doc.exists && doc['username'] != null)
-          ? doc['username']
-          : widget.userId.substring(0, widget.userId.length.clamp(0, 6));
-      _profilePicUrl = (doc.data()?['profilePicUrl'] ?? '') as String;
+      _username = preview.username;
+      _profilePicUrl = preview.profileImageUrl;
     });
   }
 
@@ -268,7 +281,8 @@ class _VideoItemState extends State<VideoItem> {
   }
 
   void _listenLikes() {
-    FirebaseFirestore.instance
+    _likesSubscription?.cancel();
+    _likesSubscription = FirebaseFirestore.instance
         .collection('posts')
         .doc(widget.postId)
         .snapshots()
@@ -280,6 +294,41 @@ class _VideoItemState extends State<VideoItem> {
         });
       }
     });
+  }
+
+  Future<void> _sharePost() async {
+    final prompt = widget.prompt.trim();
+    final message = StringBuffer('Vibeo\'da bir içerik keşfettim.')
+      ..write('\n\n')
+      ..write(prompt.isEmpty ? 'Yeni bir AI vibe.' : prompt)
+      ..write('\n\n')
+      ..write('Görsel: ${widget.imageUrl}')
+      ..write('\n')
+      ..write('Uygulama: https://vibeo-58032.web.app');
+
+    if (widget.postId.isNotEmpty) {
+      message
+        ..write('\n')
+        ..write('Post: ${widget.postId}');
+    }
+
+    try {
+      final box = context.findRenderObject() as RenderBox?;
+      await Share.share(
+        message.toString(),
+        subject: 'Vibeo paylasimi',
+        sharePositionOrigin:
+            box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Paylasim acilamadi: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   Future<void> _toggleLike() async {
@@ -556,7 +605,13 @@ class _VideoItemState extends State<VideoItem> {
               const SizedBox(height: 22),
 
               // Paylaş
-              const _ActionBtn(icon: Icons.share_rounded, label: 'Paylaş'),
+              GestureDetector(
+                onTap: _sharePost,
+                child: const _ActionBtn(
+                  icon: Icons.share_rounded,
+                  label: 'Paylaş',
+                ),
+              ),
               const SizedBox(height: 22),
 
               // Kaydet

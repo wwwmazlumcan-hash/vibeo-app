@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/user_service.dart';
 import '../screens/stories/story_viewer_screen.dart';
 import '../screens/stories/story_create_screen.dart';
 
@@ -59,8 +60,7 @@ class _MyStoryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.push(
-          context,
+      onTap: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => const StoryCreateScreen())),
       child: Padding(
         padding: const EdgeInsets.only(right: 14),
@@ -93,8 +93,7 @@ class _MyStoryButton extends StatelessWidget {
                       shape: BoxShape.circle,
                       color: Colors.cyanAccent,
                     ),
-                    child:
-                        const Icon(Icons.add, color: Colors.black, size: 14),
+                    child: const Icon(Icons.add, color: Colors.black, size: 14),
                   ),
                 ),
               ],
@@ -126,9 +125,9 @@ class _StoryRingState extends State<_StoryRing>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 3))
-      ..repeat();
+    _ctrl =
+        AnimationController(vsync: this, duration: const Duration(seconds: 3))
+          ..repeat();
   }
 
   @override
@@ -139,15 +138,15 @@ class _StoryRingState extends State<_StoryRing>
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.userId)
-          .get(),
+    return FutureBuilder<UserPreview>(
+      future: UserService().getUserPreview(
+        widget.userId,
+        fallbackUsername: '...',
+      ),
       builder: (context, snap) {
-        final data = snap.data?.data() as Map<String, dynamic>?;
-        final username = data?['username'] as String? ?? '...';
-        final avatar = data?['avatarUrl'] as String?;
+        final preview = snap.data;
+        final username = preview?.username ?? '...';
+        final avatar = preview?.profileImageUrl;
 
         return GestureDetector(
           onTap: () => Navigator.push(
@@ -174,9 +173,8 @@ class _StoryRingState extends State<_StoryRing>
                         child: CircleAvatar(
                           radius: 28,
                           backgroundColor: const Color(0xFF0B141D),
-                          backgroundImage: avatar != null
-                              ? NetworkImage(avatar)
-                              : null,
+                          backgroundImage:
+                              avatar != null ? NetworkImage(avatar) : null,
                           child: avatar == null
                               ? Text(
                                   username.isNotEmpty
@@ -198,8 +196,7 @@ class _StoryRingState extends State<_StoryRing>
                   width: 62,
                   child: Text(
                     username,
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 11),
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                   ),

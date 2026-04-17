@@ -5,7 +5,14 @@
       "Bash(dart run:*)",
       "Bash(flutter analyze:*)",
       "Bash(gh run:*)",
-      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" run list --limit 3 -R wwwmazlumcan-hash/vibeo-app)"
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" run list --limit 3 -R wwwmazlumcan-hash/vibeo-app)",
+      "Bash(flutter build:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(flutter pub:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(python3 -c ':*)"
     ]
   }
 }

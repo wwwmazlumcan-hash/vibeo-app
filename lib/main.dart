@@ -16,11 +16,11 @@ import 'screens/onboarding/onboarding_screen.dart';
 import 'services/connectivity_service.dart';
 import 'services/presence_service.dart';
 
-class _AppBootstrapState {
+class AppBootstrapState {
   final bool firebaseReady;
   final String? firebaseError;
 
-  const _AppBootstrapState({
+  const AppBootstrapState({
     required this.firebaseReady,
     this.firebaseError,
   });
@@ -50,6 +50,9 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    if (kIsWeb) {
+      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+    }
     debugPrint('Firebase bağlandı');
   } catch (e) {
     firebaseError = e.toString();
@@ -61,7 +64,7 @@ Future<void> main() async {
 
   runApp(
     VibeoApp(
-      bootstrapState: _AppBootstrapState(
+      bootstrapState: AppBootstrapState(
         firebaseReady: firebaseError == null,
         firebaseError: firebaseError,
       ),
@@ -70,7 +73,7 @@ Future<void> main() async {
 }
 
 class VibeoApp extends StatelessWidget {
-  final _AppBootstrapState bootstrapState;
+  final AppBootstrapState bootstrapState;
 
   const VibeoApp({super.key, required this.bootstrapState});
 
@@ -160,7 +163,7 @@ class VibeoApp extends StatelessWidget {
 }
 
 class _AuthGate extends StatelessWidget {
-  final _AppBootstrapState bootstrapState;
+  final AppBootstrapState bootstrapState;
 
   const _AuthGate({required this.bootstrapState});
 

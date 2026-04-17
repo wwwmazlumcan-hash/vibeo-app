@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'signup_screen.dart';
 import '../legal/privacy_policy_screen.dart';
 
@@ -17,23 +18,116 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscure = true;
 
   Future<void> _login() async {
+    final email = _emailCtrl.text.trim();
+    final password = _passCtrl.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      _showError('E-posta ve şifre gerekli.');
+      return;
+    }
+
     setState(() => _loading = true);
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
+      await _ensureUserDocument(
+        uid: credential.user?.uid,
+        email: email,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      _showError(_mapAuthError(e));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Hata: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _showError('Giriş sırasında beklenmeyen bir hata oluştu.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _ensureUserDocument({
+    required String? uid,
+    required String email,
+  }) async {
+    if (uid == null || uid.isEmpty) return;
+    final ref = FirebaseFirestore.instance.collection('users').doc(uid);
+    final doc = await ref.get();
+    if (doc.exists) return;
+
+    await ref.set({
+      'uid': uid,
+      'email': email,
+      'username': email.split('@').first,
+      'profilePicUrl': '',
+      'bio': '',
+      'points': 0,
+      'followersCount': 0,
+      'followingCount': 0,
+      'videosCount': 0,
+      'followers': <String>[],
+      'following': <String>[],
+      'identityMode': 'fluid',
+      'dopamineDetoxMode': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  String _mapAuthError(FirebaseAuthException error) {
+    switch (error.code) {
+      case 'invalid-email':
+        return 'E-posta adresi geçersiz.';
+      case 'invalid-credential':
+      case 'wrong-password':
+      case 'user-not-found':
+        return 'E-posta veya şifre hatalı.';
+      case 'too-many-requests':
+        return 'Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar dene.';
+      case 'network-request-failed':
+        return 'Ağ bağlantısı kurulamadı. İnterneti kontrol et.';
+      case 'user-disabled':
+        return 'Bu hesap devre dışı bırakılmış.';
+      default:
+        return error.message ?? 'Giriş yapılamadı.';
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      _showError('Önce e-posta adresini gir.');
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Şifre sıfırlama bağlantısı gönderildi 📧'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      _showError(_mapAuthError(e));
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -59,8 +153,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         blurRadius: 30),
                   ],
                 ),
-                child:
-                    const Icon(Icons.auto_awesome, color: Colors.black, size: 42),
+                child: const Icon(Icons.auto_awesome,
+                    color: Colors.black, size: 42),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -97,8 +191,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Şifre',
-                  prefixIcon: const Icon(Icons.lock_outline,
-                      color: Colors.cyanAccent),
+                  prefixIcon:
+                      const Icon(Icons.lock_outline, color: Colors.cyanAccent),
                   suffixIcon: IconButton(
                     icon: Icon(
                         _obscure ? Icons.visibility : Icons.visibility_off,
@@ -125,7 +219,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(letterSpacing: 1.2)),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _loading ? null : _forgotPassword,
+                  child: const Text('Şifremi Unuttum',
+                      style: TextStyle(fontSize: 12, color: Colors.white38)),
+                ),
+              ),
+              const SizedBox(height: 8),
               TextButton(
                 onPressed: () => Navigator.push(
                   context,
@@ -138,7 +241,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.push(context,
+                    onPressed: () => Navigator.push(
+                        context,
                         MaterialPageRoute(
                             builder: (_) => const PrivacyPolicyScreen())),
                     child: const Text('Gizlilik',

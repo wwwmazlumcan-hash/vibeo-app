@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/video_model.dart';
+import '../services/social_experience_service.dart';
+import '../services/surprise_engine_service.dart';
 import '../services/video_service.dart';
 import '../services/storage_service.dart';
 
-enum FeedMode { forYou, following, trending }
+enum FeedMode { forYou, following, trending, parallel, deep, fun }
 
 class VideoProvider extends ChangeNotifier {
   final VideoService _videoService = VideoService();
@@ -109,6 +111,57 @@ class VideoProvider extends ChangeNotifier {
           .toList();
     }
 
+    if (_feedMode == FeedMode.parallel) {
+      working.sort((a, b) {
+        final scoreB = SurpriseEngineService.parallelScore(
+          b.data(),
+          preferredHashtags: _preferredHashtags,
+          preferredCreators: _preferredCreators,
+        );
+        final scoreA = SurpriseEngineService.parallelScore(
+          a.data(),
+          preferredHashtags: _preferredHashtags,
+          preferredCreators: _preferredCreators,
+        );
+        return scoreB.compareTo(scoreA);
+      });
+      return working;
+    }
+
+    if (_feedMode == FeedMode.deep) {
+      working.sort((a, b) {
+        final scoreB = SocialExperienceService.deepFeedScore(
+          b.data(),
+          preferredHashtags: _preferredHashtags,
+          preferredCreators: _preferredCreators,
+        );
+        final scoreA = SocialExperienceService.deepFeedScore(
+          a.data(),
+          preferredHashtags: _preferredHashtags,
+          preferredCreators: _preferredCreators,
+        );
+        return scoreB.compareTo(scoreA);
+      });
+      return working;
+    }
+
+    if (_feedMode == FeedMode.fun) {
+      working.sort((a, b) {
+        final scoreB = SocialExperienceService.funFeedScore(
+          b.data(),
+          preferredHashtags: _preferredHashtags,
+          preferredCreators: _preferredCreators,
+        );
+        final scoreA = SocialExperienceService.funFeedScore(
+          a.data(),
+          preferredHashtags: _preferredHashtags,
+          preferredCreators: _preferredCreators,
+        );
+        return scoreB.compareTo(scoreA);
+      });
+      return working;
+    }
+
     working.sort((a, b) {
       final scoreB = _scoreDoc(b, uid);
       final scoreA = _scoreDoc(a, uid);
@@ -130,6 +183,21 @@ class VideoProvider extends ChangeNotifier {
 
     if (_feedMode == FeedMode.trending) {
       reasons.add('Trend akışındasın ve bu içerik etkileşim alıyor.');
+    }
+
+    if (_feedMode == FeedMode.parallel) {
+      reasons.add(
+          'Parallel mod, tanıdık zevk ile beklenmedik sapmaları çarpıştırıyor.');
+    }
+
+    if (_feedMode == FeedMode.deep) {
+      reasons.add(
+          'Deep Feed, sohbet kalitesi yüksek ve düşünmeye değer içerikleri öne çıkarıyor.');
+    }
+
+    if (_feedMode == FeedMode.fun) {
+      reasons.add(
+          'Fun Feed, hafif ve enerjik içerikleri bir mola akışı olarak öne çıkarıyor.');
     }
 
     if (_followingIds.contains(authorId)) {

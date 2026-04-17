@@ -5,6 +5,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/bookmark_service.dart';
 import '../../services/hashtag_service.dart';
 import '../../services/reality_layer_service.dart';
+import '../../services/social_experience_service.dart';
+import '../../services/spark_service.dart';
+import '../../services/surprise_engine_service.dart';
+import '../../services/time_capsule_service.dart';
+import '../remix/remix_duel_screen.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final String postId;
@@ -29,6 +34,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _remixing = false;
   bool _saved = false;
   bool _saving = false;
+  bool _sparked = false;
+  bool _sparking = false;
   String? _remixedUrl;
   String _remixedPrompt = '';
   RealityLayerMode _realityMode = RealityLayerMode.balanced;
@@ -39,6 +46,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   void initState() {
     super.initState();
     _loadSavedStatus();
+    _loadSparkState();
   }
 
   Future<void> _loadSavedStatus() async {
@@ -46,6 +54,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final saved = await BookmarkService.isSaved(widget.postId);
     if (!mounted) return;
     setState(() => _saved = saved);
+  }
+
+  Future<void> _loadSparkState() async {
+    if (widget.postId.isEmpty) return;
+    final sparked = await SparkService.hasSparked(widget.postId);
+    if (!mounted) return;
+    setState(() => _sparked = sparked);
   }
 
   Future<void> _toggleSave() async {
@@ -101,6 +116,98 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
+  Future<void> _toggleSpark() async {
+    if (_sparking || widget.postId.isEmpty) return;
+    setState(() => _sparking = true);
+    try {
+      await SparkService.toggleSpark(postId: widget.postId);
+      if (!mounted) return;
+      setState(() => _sparked = !_sparked);
+      final starter = SparkService.buildConversationStarter(widget.prompt);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              _sparked ? 'Spark gönderildi. $starter' : 'Spark geri çekildi.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sparking = false);
+    }
+  }
+
+  Future<void> _scheduleCapsule() async {
+    final noteCtrl = TextEditingController();
+    int years = 1;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return StatefulBuilder(
+              builder: (context, setDialogState) {
+                return AlertDialog(
+                  title: const Text('Zaman Kapsülü'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButton<int>(
+                        value: years,
+                        isExpanded: true,
+                        items: const [1, 5, 10]
+                            .map((year) => DropdownMenuItem(
+                                  value: year,
+                                  child: Text('$year yıl sonra aç'),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setDialogState(() => years = value);
+                          }
+                        },
+                      ),
+                      TextField(
+                        controller: noteCtrl,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          hintText: 'Gelecekteki kendine not bırak...',
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Vazgeç'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Planla'),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    await TimeCapsuleService.scheduleCapsule(
+      postId: widget.postId,
+      prompt: widget.prompt,
+      revealAt: DateTime.now().add(Duration(days: years * 365)),
+      note: noteCtrl.text.trim(),
+    );
+    noteCtrl.dispose();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Zaman kapsülü planlandı.'),
+        backgroundColor: Colors.amber,
+      ),
+    );
+  }
+
   Future<void> _share() async {
     if (_remixedUrl == null) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -138,6 +245,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final displayUrl = _remixedUrl ?? widget.imageUrl;
+    final companionHint = SocialExperienceService.buildCompanionHint(
+      prompt: widget.prompt,
+      username: widget.username,
+    );
+    final parallelVariants =
+        SocialExperienceService.buildParallelUniverseVariants(
+      prompt: widget.prompt,
+      hashtags: HashtagService.extractHashtags(widget.prompt),
+    );
 
     return Scaffold(
       backgroundColor: _bg,
@@ -154,6 +270,118 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              future: FirebaseFirestore.instance
+                  .collection('posts')
+                  .where('remixOf', isEqualTo: widget.postId)
+                  .limit(12)
+                  .get(),
+              builder: (context, remixSnapshot) {
+                final remixDocs = remixSnapshot.data?.docs ??
+                    const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                final lineage = SurpriseEngineService.buildRemixLineageInsight(
+                  isRemix: _remixedPrompt.isNotEmpty,
+                  descendantCount: remixDocs.length,
+                );
+                final accent = switch (lineage.colorSeed) {
+                  ColorSeed.amber => Colors.amber,
+                  ColorSeed.pink => Colors.pinkAccent,
+                  ColorSeed.green => Colors.greenAccent,
+                  ColorSeed.purple => Colors.purpleAccent,
+                  ColorSeed.cyan => Colors.cyanAccent,
+                };
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: accent.withValues(alpha: 0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          lineage.title,
+                          style: TextStyle(
+                            color: accent,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          lineage.summary,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            height: 1.35,
+                          ),
+                        ),
+                        if (remixDocs.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 84,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: remixDocs.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: 8),
+                              itemBuilder: (context, index) {
+                                final data = remixDocs[index].data();
+                                return GestureDetector(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => PostDetailScreen(
+                                        postId: remixDocs[index].id,
+                                        imageUrl:
+                                            (data['imageUrl'] ?? '') as String,
+                                        prompt:
+                                            (data['prompt'] ?? '') as String,
+                                        username:
+                                            ((data['userId'] ?? '') as String)
+                                                .substring(
+                                          0,
+                                          ((data['userId'] ?? '') as String)
+                                              .length
+                                              .clamp(0, 6),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Image.network(
+                                      (data['imageUrl'] ?? '') as String,
+                                      width: 84,
+                                      height: 84,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          const ColoredBox(
+                                        color: Colors.black,
+                                        child: SizedBox(
+                                          width: 84,
+                                          height: 84,
+                                          child: Icon(
+                                            Icons.broken_image,
+                                            color: Colors.white24,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
             FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               future: FirebaseFirestore.instance
                   .collection('posts')
@@ -186,6 +414,57 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             label: 'Verimlilik $proofAi',
                             accent: Colors.cyanAccent),
                     ],
+                  ),
+                );
+              },
+            ),
+            FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: FirebaseFirestore.instance
+                  .collection('posts')
+                  .doc(widget.postId)
+                  .get(),
+              builder: (context, snapshot) {
+                final data = snapshot.data?.data() ?? const <String, dynamic>{};
+                if (data.isEmpty) return const SizedBox.shrink();
+                final afterimage =
+                    SurpriseEngineService.buildPostAfterimage(data);
+                final accent = switch (afterimage.colorSeed) {
+                  ColorSeed.amber => Colors.amber,
+                  ColorSeed.pink => Colors.pinkAccent,
+                  ColorSeed.green => Colors.greenAccent,
+                  ColorSeed.purple => Colors.purpleAccent,
+                  ColorSeed.cyan => Colors.cyanAccent,
+                };
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: accent.withValues(alpha: 0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          afterimage.title,
+                          style: TextStyle(
+                            color: accent,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          afterimage.summary,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -283,6 +562,81 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
                 height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.purpleAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Colors.purpleAccent.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    companionHint.title,
+                    style: const TextStyle(
+                      color: Colors.purpleAccent,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    companionHint.message,
+                    style: const TextStyle(color: Colors.white70, height: 1.35),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    companionHint.rewrite,
+                    style: const TextStyle(color: Colors.white54, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Colors.orangeAccent.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Spark',
+                    style: TextStyle(
+                      color: Colors.orangeAccent,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    SparkService.buildConversationStarter(widget.prompt),
+                    style: const TextStyle(color: Colors.white70, height: 1.35),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _sparking ? null : _toggleSpark,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orangeAccent,
+                          foregroundColor: Colors.black,
+                        ),
+                        icon: Icon(_sparked ? Icons.bolt : Icons.bolt_outlined),
+                        label: Text(_sparked ? 'Spark aktif' : 'Spark at'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
@@ -439,6 +793,109 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.cyanAccent.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Colors.cyanAccent.withValues(alpha: 0.18),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Parallel Universe',
+                    style: TextStyle(
+                      color: Colors.cyanAccent,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...parallelVariants.map((variant) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${variant.orbitName} • ${variant.angle}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            variant.summary,
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RemixDuelScreen(
+                      seedPostId: widget.postId,
+                      seedImageUrl: widget.imageUrl,
+                      seedPrompt: widget.prompt,
+                      seedUsername: widget.username,
+                    ),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: Colors.orangeAccent.withValues(alpha: 0.4),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                icon: const Icon(Icons.sports_martial_arts,
+                    color: Colors.orangeAccent),
+                label: const Text(
+                  'Remix Duel Başlat',
+                  style: TextStyle(
+                    color: Colors.orangeAccent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _scheduleCapsule,
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: Colors.amber.withValues(alpha: 0.4),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                icon: const Icon(Icons.lock_clock, color: Colors.amber),
+                label: const Text(
+                  'Zaman Kapsülü Planla',
+                  style: TextStyle(
+                    color: Colors.amber,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 20),

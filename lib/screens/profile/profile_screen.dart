@@ -3,11 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:in_app_review/in_app_review.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../config/app_metadata.dart';
 import '../post/post_detail_screen.dart';
 import '../../services/user_service.dart';
 import '../../services/liquid_identity_service.dart';
+import '../../services/surprise_engine_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../hub/liquid_identity_screen.dart';
+import '../legal/privacy_policy_screen.dart';
+import '../social/social_os_screen.dart';
 import 'follow_list_screen.dart';
 import 'saved_posts_screen.dart';
 
@@ -29,9 +35,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _followingCount = 0;
   bool _isFollowing = false;
   bool _followLoading = false;
+  bool _accountDeletionLoading = false;
   String _profilePicUrl = '';
   bool _twinEnabled = false;
   String _twinStatusLabel = '';
+  String _identityMode = 'fluid';
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _profileSub;
 
   final _userService = UserService();
@@ -75,6 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _followersCount = (data['followersCount'] ?? 0) as int;
         _followingCount = (data['followingCount'] ?? 0) as int;
         _profilePicUrl = (data['profilePicUrl'] ?? '') as String;
+        _identityMode = (data['identityMode'] ?? 'fluid') as String;
         _twinEnabled = twinEnabled;
         _twinStatusLabel = twinEnabled
             ? (transparency.isNotEmpty
@@ -102,6 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _followersCount = (data['followersCount'] ?? 0) as int;
       _followingCount = (data['followingCount'] ?? 0) as int;
       _profilePicUrl = (data['profilePicUrl'] ?? '') as String;
+      _identityMode = (data['identityMode'] ?? 'fluid') as String;
       _isFollowing = isFollowing;
     });
   }
@@ -135,6 +145,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } finally {
       if (mounted) setState(() => _followLoading = false);
+    }
+  }
+
+  Future<void> _requestStoreReview() async {
+    final review = InAppReview.instance;
+    final canRequest = await review.isAvailable();
+    if (!canRequest || !mounted) return;
+    await review.requestReview();
+  }
+
+  Future<void> _openSupportEmail({String? subject}) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: AppMetadata.supportEmail,
+      queryParameters: {
+        if (subject != null) 'subject': subject,
+      },
+    );
+
+    if (!await launchUrl(uri)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Destek e-postasi acilamadi.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openWebsite() async {
+    final uri = Uri.parse(AppMetadata.websiteUrl);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Web sitesi acilamadi.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Hesabi Sil'),
+            content: const Text(
+              'Bu islem geri alinamaz. Profilin, paylasimlarin, hikayelerin ve temel hesap verilerin silinir.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Vazgec'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style:
+                    ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                child: const Text('Kalici Olarak Sil'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed || !mounted) return;
+
+    setState(() => _accountDeletionLoading = true);
+    try {
+      await _userService.deleteCurrentUserAccount();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hesabin silindi.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _accountDeletionLoading = false);
     }
   }
 
@@ -241,6 +340,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.cyanAccent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.cyanAccent.withValues(alpha: 0.24),
+                        ),
+                      ),
+                      child: Text(
+                        'Kimlik modu: $_identityMode',
+                        style: const TextStyle(
+                          color: Colors.cyanAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     // Follow button (only for other users)
                     if (!_isOwnProfile)
@@ -413,6 +532,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('posts')
+                      .where('userId', isEqualTo: profileUid)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final docs = snapshot.data?.docs ??
+                        const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                    if (docs.length < 2) {
+                      return const SizedBox.shrink();
+                    }
+
+                    final report = SurpriseEngineService.buildVibeDna(
+                      docs.map((doc) => doc.data()).toList(),
+                      username: _username,
+                    );
+
+                    return _VibeDnaCard(report: report);
+                  },
+                ),
+              ),
+            ),
+
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: FutureBuilder<LiquidIdentitySnapshot>(
                   future: profileUid == null
                       ? null
@@ -517,39 +662,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SavedPostsScreen(),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                            color: Colors.cyanAccent.withValues(alpha: 0.2)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.bookmark, color: Colors.cyanAccent),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Text('Kaydedilen gönderilere git',
-                                style: TextStyle(
-                                    color: Colors.white70, fontSize: 14)),
+                  child: Column(
+                    children: [
+                      _ProfileActionCard(
+                        icon: Icons.auto_awesome_motion,
+                        label: 'Social OS merkezi',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SocialOsScreen(),
                           ),
-                          Icon(Icons.arrow_forward_ios,
-                              size: 14, color: Colors.white38),
-                        ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      _ProfileActionCard(
+                        icon: Icons.bookmark,
+                        label: 'Kaydedilen gönderilere git',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SavedPostsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _ProfileActionCard(
+                        icon: Icons.star_outline,
+                        label: 'Uygulamayi degerlendir',
+                        onTap: _requestStoreReview,
+                      ),
+                      const SizedBox(height: 12),
+                      _ProfileActionCard(
+                        icon: Icons.mail_outline,
+                        label: 'Destek iletisimi',
+                        onTap: () => _openSupportEmail(
+                          subject: AppMetadata.supportSubject,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _ProfileActionCard(
+                        icon: Icons.privacy_tip_outlined,
+                        label: 'Gizlilik politikasi',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PrivacyPolicyScreen(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _ProfileActionCard(
+                        icon: Icons.description_outlined,
+                        label: 'Kullanim kosullari',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const TermsScreen(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _ProfileActionCard(
+                        icon: Icons.public,
+                        label: 'Resmi web sitesi',
+                        onTap: _openWebsite,
+                      ),
+                      const SizedBox(height: 12),
+                      _ProfileActionCard(
+                        icon: Icons.delete_forever_outlined,
+                        label: _accountDeletionLoading
+                            ? 'Hesap siliniyor...'
+                            : 'Hesabi kalici olarak sil',
+                        iconColor: Colors.redAccent,
+                        onTap: _accountDeletionLoading
+                            ? null
+                            : _confirmDeleteAccount,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -704,6 +895,50 @@ class _StatBox extends StatelessWidget {
   }
 }
 
+class _ProfileActionCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final Color iconColor;
+
+  const _ProfileActionCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.iconColor = Colors.cyanAccent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: iconColor.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios,
+                size: 14, color: Colors.white38),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _IdentityBadge extends StatelessWidget {
   final String label;
   final Color accent;
@@ -728,6 +963,192 @@ class _IdentityBadge extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+}
+
+class _VibeDnaCard extends StatelessWidget {
+  final VibeDnaReport report;
+
+  const _VibeDnaCard({required this.report});
+
+  Color _paletteColor(String label) {
+    switch (label) {
+      case 'Cyan Flux':
+        return Colors.cyanAccent;
+      case 'Moon Lilac':
+        return Colors.purpleAccent;
+      case 'Solar Red':
+        return Colors.redAccent;
+      case 'Obsidian Gold':
+        return Colors.amberAccent;
+      case 'Chrome Blue':
+        return Colors.lightBlueAccent;
+      case 'Bio Green':
+        return Colors.greenAccent;
+      case 'Amber Smoke':
+        return Colors.orangeAccent;
+      case 'Candy Pulse':
+        return Colors.pinkAccent;
+      default:
+        return Colors.white70;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.deepPurple.withValues(alpha: 0.22),
+            Colors.cyanAccent.withValues(alpha: 0.08),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.biotech_outlined,
+                  color: Colors.purpleAccent, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Vibe DNA',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Text(
+                '${report.sampleCount} sinyal',
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            report.codename,
+            style: const TextStyle(
+              color: Colors.purpleAccent,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            report.mirrorLine,
+            style: const TextStyle(color: Colors.white70, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final signal in report.dominantSignals)
+                _IdentityBadge(
+                  label: signal,
+                  accent: Colors.purpleAccent,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _DnaMetric(
+                  label: 'Rarity',
+                  value: '${report.rarityScore}',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _DnaMetric(
+                  label: 'Contrast',
+                  value: '${report.contrastScore}',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            report.anomalyLabel,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: report.paletteLabels.map((label) {
+              final color = _paletteColor(label);
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DnaMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DnaMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(color: Colors.white54, fontSize: 11)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }

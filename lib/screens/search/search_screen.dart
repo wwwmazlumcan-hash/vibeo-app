@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/hashtag_service.dart';
+import '../../services/surprise_engine_service.dart';
 import '../post/post_detail_screen.dart';
+import '../remix/remix_duel_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -15,6 +17,8 @@ class _SearchScreenState extends State<SearchScreen> {
   String _query = '';
   String _category = 'Tümü';
   String? _selectedHashtag;
+  bool _serendipityMode = false;
+  int _jumpSeed = 0;
 
   static const _bg = Color(0xFF03070D);
   static const _categories = {
@@ -24,6 +28,34 @@ class _SearchScreenState extends State<SearchScreen> {
     'Funny': Icons.emoji_emotions_outlined,
     'Tech': Icons.memory_outlined,
   };
+
+  bool _matchesFilters(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    final prompt = (data['prompt'] ?? '').toString().toLowerCase();
+    final hashtags = List<String>.from(data['hashtags'] ?? []);
+    final hashtagQuery = _query.startsWith('#') ? _query.substring(1) : _query;
+
+    final matchesQuery = _query.isEmpty ||
+        prompt.contains(_query) ||
+        hashtags.any((tag) => tag.toLowerCase().contains(hashtagQuery));
+    if (!matchesQuery) {
+      return false;
+    }
+    if (_selectedHashtag != null && !hashtags.contains(_selectedHashtag)) {
+      return false;
+    }
+    return true;
+  }
+
+  void _jump() {
+    setState(() {
+      _serendipityMode = true;
+      _jumpSeed += 1;
+      _query = '';
+      _selectedHashtag = null;
+      _searchCtrl.clear();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +85,36 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                     child: const Icon(Icons.auto_awesome,
                         color: Colors.cyanAccent, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _jump,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.amber.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.shuffle_rounded,
+                              color: Colors.amber, size: 14),
+                          SizedBox(width: 6),
+                          Text(
+                            'Jump',
+                            style: TextStyle(
+                              color: Colors.amber,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -184,7 +246,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: FirebaseFirestore.instance
                     .collection('posts')
                     .orderBy('createdAt', descending: true)
@@ -195,26 +257,59 @@ class _SearchScreenState extends State<SearchScreen> {
                         child: CircularProgressIndicator(
                             color: Colors.cyanAccent));
                   }
-                  final docs = (snap.data?.docs ?? []).where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final prompt =
-                        (data['prompt'] ?? '').toString().toLowerCase();
-                    final hashtags = List<String>.from(data['hashtags'] ?? []);
-                    final hashtagQuery =
-                        _query.startsWith('#') ? _query.substring(1) : _query;
-
-                    final matchesQuery = _query.isEmpty ||
-                        prompt.contains(_query) ||
-                        hashtags.any((tag) => tag.contains(hashtagQuery));
-                    if (!matchesQuery) {
-                      return false;
-                    }
-                    if (_selectedHashtag != null &&
-                        !hashtags.contains(_selectedHashtag)) {
-                      return false;
-                    }
-                    return true;
-                  }).toList();
+                  final sourceDocs = snap.data?.docs ??
+                      const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                  final filteredDocs =
+                      sourceDocs.where(_matchesFilters).toList();
+                  final remixDocs = sourceDocs
+                      .where((doc) {
+                        final data = doc.data();
+                        final creationMode =
+                            (data['creationMode'] ?? '') as String;
+                        return creationMode == 'impossible_remix' ||
+                            creationMode == 'remix' ||
+                            (data['remixBridgeLine'] ?? '')
+                                .toString()
+                                .isNotEmpty;
+                      })
+                      .take(8)
+                      .toList();
+                  final remixLens = remixDocs.isEmpty
+                      ? null
+                      : SurpriseEngineService.buildRemixShelfLens(
+                          remixDocs.map((doc) => doc.data()).toList(),
+                        );
+                  final remixLeaderboardDocs =
+                      List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+                    remixDocs,
+                  )..sort((a, b) => ((b.data()['likesCount'] ?? 0) as int)
+                          .compareTo((a.data()['likesCount'] ?? 0) as int));
+                  final remixLeaderboardLens = remixLeaderboardDocs.isEmpty
+                      ? null
+                      : SurpriseEngineService.buildRemixLeaderboardLens(
+                          remixLeaderboardDocs
+                              .map((doc) => doc.data())
+                              .toList(),
+                        );
+                  final plan = _serendipityMode && sourceDocs.isNotEmpty
+                      ? SurpriseEngineService.buildSerendipityJump(
+                          sourceDocs.map((doc) => doc.data()).toList(),
+                          seed: _jumpSeed,
+                          query: _query,
+                          category: _category,
+                          selectedHashtag: _selectedHashtag,
+                        )
+                      : null;
+                  final docs = plan == null
+                      ? filteredDocs
+                      : (List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+                          sourceDocs,
+                        )..sort((a, b) => plan
+                              .scorePost(b.data())
+                              .compareTo(plan.scorePost(a.data()))))
+                          .where((doc) => plan.scorePost(doc.data()) > 12)
+                          .take(12)
+                          .toList();
 
                   if (docs.isEmpty) {
                     return const Center(
@@ -223,32 +318,473 @@ class _SearchScreenState extends State<SearchScreen> {
                     );
                   }
 
-                  return GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.78,
-                    ),
-                    itemCount: docs.length,
-                    itemBuilder: (context, i) {
-                      final data = docs[i].data() as Map<String, dynamic>;
-                      return _ExploreCard(
-                        postId: docs[i].id,
-                        imageUrl: data['imageUrl'] ?? '',
-                        prompt: data['prompt'] ?? '',
-                        hashtags: List<String>.from(data['hashtags'] ?? []),
-                        userId: data['userId'] ?? '',
-                      );
-                    },
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: _DuelArenaEntry(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RemixDuelScreen(),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (remixLeaderboardLens != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: _RemixLeaderboard(
+                            lens: remixLeaderboardLens,
+                            docs: remixLeaderboardDocs.take(3).toList(),
+                          ),
+                        ),
+                      if (remixLens != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: _RemixShelf(
+                            lens: remixLens,
+                            docs: remixDocs,
+                          ),
+                        ),
+                      if (plan != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: _SerendipityPanel(
+                            plan: plan,
+                            onReroll: _jump,
+                            onDisable: () => setState(
+                              () => _serendipityMode = false,
+                            ),
+                          ),
+                        ),
+                      Expanded(
+                        child: GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.78,
+                          ),
+                          itemCount: docs.length,
+                          itemBuilder: (context, i) {
+                            final data = docs[i].data();
+                            return _ExploreCard(
+                              postId: docs[i].id,
+                              imageUrl: data['imageUrl'] ?? '',
+                              prompt: data['prompt'] ?? '',
+                              hashtags:
+                                  List<String>.from(data['hashtags'] ?? []),
+                              userId: data['userId'] ?? '',
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DuelArenaEntry extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _DuelArenaEntry({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.orangeAccent.withValues(alpha: 0.16),
+              Colors.redAccent.withValues(alpha: 0.08),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border:
+              Border.all(color: Colors.orangeAccent.withValues(alpha: 0.32)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.sports_martial_arts, color: Colors.orangeAccent),
+            SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Duel Arena',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Aktif remix kapismalarina gir, oy ver veya kendi duelini baslat.',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white54),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RemixLeaderboard extends StatelessWidget {
+  final RemixLeaderboardLens lens;
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  const _RemixLeaderboard({required this.lens, required this.docs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            lens.title,
+            style: const TextStyle(
+              color: Colors.greenAccent,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            lens.summary,
+            style: const TextStyle(
+              color: Colors.white60,
+              fontSize: 12,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...List.generate(docs.length, (index) {
+            final data = docs[index].data();
+            final likes = (data['likesCount'] ?? 0) as int;
+            final prompt = (data['prompt'] ?? '') as String;
+            return Padding(
+              padding:
+                  EdgeInsets.only(bottom: index == docs.length - 1 ? 0 : 10),
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PostDetailScreen(
+                      postId: docs[index].id,
+                      imageUrl: (data['imageUrl'] ?? '') as String,
+                      prompt: prompt,
+                      username: ((data['userId'] ?? '') as String).substring(
+                        0,
+                        ((data['userId'] ?? '') as String).length.clamp(0, 6),
+                      ),
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.greenAccent.withValues(alpha: 0.14),
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(
+                          color: Colors.greenAccent,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        (data['imageUrl'] ?? '') as String,
+                        width: 46,
+                        height: 46,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const ColoredBox(
+                          color: Colors.black,
+                          child: SizedBox(
+                            width: 46,
+                            height: 46,
+                            child:
+                                Icon(Icons.broken_image, color: Colors.white24),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        prompt,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.local_fire_department,
+                            color: Colors.greenAccent, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$likes',
+                          style: const TextStyle(
+                            color: Colors.greenAccent,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _RemixShelf extends StatelessWidget {
+  final RemixShelfLens lens;
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  const _RemixShelf({required this.lens, required this.docs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          lens.title,
+          style: const TextStyle(
+            color: Colors.amber,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          lens.summary,
+          style: const TextStyle(
+            color: Colors.white60,
+            fontSize: 12,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 116,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: docs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final data = docs[index].data();
+              final prompt = (data['prompt'] ?? '') as String;
+              final bridge = (data['remixBridgeLine'] ?? '') as String;
+              return GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PostDetailScreen(
+                      postId: docs[index].id,
+                      imageUrl: (data['imageUrl'] ?? '') as String,
+                      prompt: prompt,
+                      username: ((data['userId'] ?? '') as String).substring(
+                          0,
+                          ((data['userId'] ?? '') as String)
+                              .length
+                              .clamp(0, 6)),
+                    ),
+                  ),
+                ),
+                child: Container(
+                  width: 230,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.amber.withValues(alpha: 0.22),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          (data['imageUrl'] ?? '') as String,
+                          width: 76,
+                          height: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 76,
+                            color: Colors.black,
+                            child: const Icon(
+                              Icons.broken_image,
+                              color: Colors.white24,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Impossible Remix',
+                              style: TextStyle(
+                                color: Colors.amber,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              bridge.isEmpty ? prompt : bridge,
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SerendipityPanel extends StatelessWidget {
+  final SerendipityJumpPlan plan;
+  final VoidCallback onReroll;
+  final VoidCallback onDisable;
+
+  const _SerendipityPanel({
+    required this.plan,
+    required this.onReroll,
+    required this.onDisable,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.amber.withValues(alpha: 0.16),
+            Colors.cyanAccent.withValues(alpha: 0.08),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome_motion,
+                  color: Colors.amber, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${plan.title} • ${plan.categoryLabel}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            plan.summary,
+            style: const TextStyle(color: Colors.white70, height: 1.35),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final signal in plan.signalWords)
+                _HashtagChip(label: signal, selected: true),
+              for (final tag in plan.hashtags)
+                _HashtagChip(label: '#$tag', selected: false),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: onReroll,
+                icon: const Icon(Icons.shuffle_rounded, size: 16),
+                label: const Text('Tekrar Buk'),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: onDisable,
+                icon: const Icon(Icons.close_rounded, size: 16),
+                label: const Text('Normal Mod'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

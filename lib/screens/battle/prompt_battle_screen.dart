@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/points_service.dart';
+import '../../services/user_service.dart';
 
 class PromptBattleScreen extends StatefulWidget {
   const PromptBattleScreen({super.key});
@@ -39,13 +40,11 @@ class _PromptBattleScreenState extends State<PromptBattleScreen>
             const Text('⚡ Prompt Battle'),
             const SizedBox(width: 8),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.orange.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: Colors.orange.withValues(alpha: 0.5)),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
               ),
               child: const Text('BETA',
                   style: TextStyle(
@@ -101,8 +100,7 @@ class _VotingTab extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           itemCount: docs.length,
           separatorBuilder: (_, __) => const SizedBox(height: 16),
-          itemBuilder: (context, i) =>
-              _BattleCard(doc: docs[i]),
+          itemBuilder: (context, i) => _BattleCard(doc: docs[i]),
         );
       },
     );
@@ -180,8 +178,8 @@ class _BattleCardState extends State<_BattleCard> {
                       textAlign: TextAlign.center),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                         colors: [Colors.orangeAccent, Colors.deepOrange]),
@@ -266,8 +264,8 @@ class _BattleCardState extends State<_BattleCard> {
                   ),
                   const SizedBox(height: 6),
                   Text('Toplam $total oy  •  +5 XP kazandın!',
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 11)),
+                      style:
+                          const TextStyle(color: Colors.white38, fontSize: 11)),
                 ],
               ),
             )
@@ -323,8 +321,7 @@ class _BattleImage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   decoration: BoxDecoration(
-                    border: Border.all(
-                        color: Colors.cyanAccent, width: 3),
+                    border: Border.all(color: Colors.cyanAccent, width: 3),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Center(
@@ -339,15 +336,14 @@ class _BattleImage extends StatelessWidget {
             left: 0,
             right: 0,
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(12)),
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(12)),
               child: Container(
                 color: Colors.black.withValues(alpha: 0.7),
                 padding: const EdgeInsets.all(6),
                 child: Text(
                   prompt,
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 10),
+                  style: const TextStyle(color: Colors.white70, fontSize: 10),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -365,16 +361,16 @@ class _EmptyBattles extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('⚡', style: TextStyle(fontSize: 64)),
-          const SizedBox(height: 16),
-          const Text('Henüz aktif battle yok',
+          Text('⚡', style: TextStyle(fontSize: 64)),
+          SizedBox(height: 16),
+          Text('Henüz aktif battle yok',
               style: TextStyle(color: Colors.white, fontSize: 18)),
-          const SizedBox(height: 8),
-          const Text('İlk battle\'ı sen başlat!',
+          SizedBox(height: 8),
+          Text('İlk battle\'ı sen başlat!',
               style: TextStyle(color: Colors.white54)),
         ],
       ),
@@ -401,12 +397,7 @@ class _CreateBattleTabState extends State<_CreateBattleTab> {
     setState(() => _loading = true);
     try {
       final me = FirebaseAuth.instance.currentUser!;
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(me.uid)
-          .get();
-      final username =
-          (userDoc.data() as Map<String, dynamic>?)?['username'] ?? 'anonim';
+      final username = await UserService().getUsername(me.uid);
 
       final encoded = Uri.encodeComponent(
           '${_promptCtrl.text.trim()}, ultra detailed, cinematic');
@@ -499,8 +490,7 @@ class _CreateBattleTabState extends State<_CreateBattleTab> {
                 Colors.orange.withValues(alpha: 0.15),
                 Colors.deepOrange.withValues(alpha: 0.08),
               ]),
-              border: Border.all(
-                  color: Colors.orange.withValues(alpha: 0.3)),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
             ),
             child: const Row(
               children: [
@@ -509,8 +499,8 @@ class _CreateBattleTabState extends State<_CreateBattleTab> {
                 Expanded(
                   child: Text(
                     'Prompt gir → AI görsel üretilir → Rakip gelir → Topluluk oy verir → Kazanan XP alır!',
-                    style:
-                        TextStyle(color: Colors.white70, fontSize: 12, height: 1.5),
+                    style: TextStyle(
+                        color: Colors.white70, fontSize: 12, height: 1.5),
                   ),
                 ),
               ],
@@ -529,8 +519,7 @@ class _CreateBattleTabState extends State<_CreateBattleTab> {
             maxLines: 3,
             decoration: const InputDecoration(
               hintText: 'En yaratıcı prompt\'unu yaz...',
-              prefixIcon:
-                  Icon(Icons.flash_on, color: Colors.orangeAccent),
+              prefixIcon: Icon(Icons.flash_on, color: Colors.orangeAccent),
             ),
           ),
           const SizedBox(height: 16),

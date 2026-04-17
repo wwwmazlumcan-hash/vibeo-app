@@ -1,11 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/user_model.dart';
 import 'notification_service.dart';
+
+class UserPreview {
+  final String username;
+  final String profileImageUrl;
+
+  const UserPreview({
+    required this.username,
+    required this.profileImageUrl,
+  });
+}
 
 class UserService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   UserService();
 
@@ -13,6 +25,41 @@ class UserService {
     final doc = await _db.collection('users').doc(uid).get();
     if (!doc.exists) return null;
     return UserModel.fromDoc(doc);
+  }
+
+  Future<UserPreview> getUserPreview(
+    String uid, {
+    String fallbackUsername = 'anonim',
+  }) async {
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      final data = doc.data() ?? <String, dynamic>{};
+      final username = (data['username'] as String?)?.trim();
+      final profilePicUrl =
+          ((data['profilePicUrl'] ?? data['avatarUrl']) as String?)?.trim();
+
+      return UserPreview(
+        username:
+            username == null || username.isEmpty ? fallbackUsername : username,
+        profileImageUrl: profilePicUrl ?? '',
+      );
+    } catch (_) {
+      return UserPreview(
+        username: fallbackUsername,
+        profileImageUrl: '',
+      );
+    }
+  }
+
+  Future<String> getUsername(
+    String uid, {
+    String fallbackUsername = 'anonim',
+  }) async {
+    final preview = await getUserPreview(
+      uid,
+      fallbackUsername: fallbackUsername,
+    );
+    return preview.username;
   }
 
   Future<void> updateProfile({
@@ -204,5 +251,128 @@ class UserService {
       if (!doc.exists) return null;
       return UserModel.fromDoc(doc);
     });
+  }
+
+  Future<void> deleteCurrentUserAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Aktif kullanıcı bulunamadı.');
+    }
+
+    final uid = user.uid;
+    await _cleanupUserGeneratedContent(uid);
+    await _cleanupSocialGraph(uid);
+    await _cleanupStorage(uid);
+    await _deleteUserDocument(uid);
+
+    try {
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        throw Exception(
+          'Güvenlik nedeniyle hesabı silmeden önce tekrar giriş yapman gerekiyor.',
+        );
+      }
+      throw Exception('Hesap silinemedi: ${e.message ?? e.code}');
+    }
+  }
+
+  Future<void> _cleanupUserGeneratedContent(String uid) async {
+    await Future.wait([
+      _deleteQueryBatch(
+          _db.collection('posts').where('userId', isEqualTo: uid)),
+      _deleteQueryBatch(
+          _db.collection('stories').where('userId', isEqualTo: uid)),
+      _deleteQueryBatch(
+        _db.collection('challenge_entries').where('userId', isEqualTo: uid),
+      ),
+      _deleteQueryBatch(
+          _db.collection('battles').where('user1', isEqualTo: uid)),
+      _deleteQueryBatch(
+          _db.collection('battles').where('user2', isEqualTo: uid)),
+    ]);
+  }
+
+  Future<void> _cleanupSocialGraph(String uid) async {
+    final myDoc = await _db.collection('users').doc(uid).get();
+    final myData = myDoc.data() ?? <String, dynamic>{};
+    final followers = List<String>.from(myData['followers'] ?? const []);
+    final following = List<String>.from(myData['following'] ?? const []);
+
+    await Future.wait([
+      for (final followerUid in followers)
+        _db.collection('users').doc(followerUid).set({
+          'following': FieldValue.arrayRemove([uid]),
+          'followingCount': FieldValue.increment(-1),
+        }, SetOptions(merge: true)),
+      for (final followingUid in following)
+        _db.collection('users').doc(followingUid).set({
+          'followers': FieldValue.arrayRemove([uid]),
+          'followersCount': FieldValue.increment(-1),
+        }, SetOptions(merge: true)),
+    ]);
+
+    await _deleteQueryBatch(
+      _db.collectionGroup('notifications').where('fromUid', isEqualTo: uid),
+    );
+    await _deleteSubcollection(
+      _db.collection('users').doc(uid).collection('notifications'),
+    );
+  }
+
+  Future<void> _cleanupStorage(String uid) async {
+    await Future.wait([
+      _deleteStorageFolder('profiles/$uid'),
+      _deleteStorageFolder('videos/$uid'),
+    ]);
+  }
+
+  Future<void> _deleteUserDocument(String uid) async {
+    await _db.collection('users').doc(uid).delete();
+  }
+
+  Future<void> _deleteQueryBatch(Query<Map<String, dynamic>> query) async {
+    while (true) {
+      final snapshot = await query.limit(100).get();
+      if (snapshot.docs.isEmpty) return;
+
+      final batch = _db.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      if (snapshot.docs.length < 100) return;
+    }
+  }
+
+  Future<void> _deleteSubcollection(
+    CollectionReference<Map<String, dynamic>> collection,
+  ) async {
+    while (true) {
+      final snapshot = await collection.limit(100).get();
+      if (snapshot.docs.isEmpty) return;
+
+      final batch = _db.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      if (snapshot.docs.length < 100) return;
+    }
+  }
+
+  Future<void> _deleteStorageFolder(String path) async {
+    try {
+      final listing = await _storage.ref(path).listAll();
+      await Future.wait([
+        for (final item in listing.items) item.delete(),
+        for (final prefix in listing.prefixes)
+          _deleteStorageFolder(prefix.fullPath),
+      ]);
+    } catch (_) {
+      // Ignore missing folders and continue account cleanup.
+    }
   }
 }

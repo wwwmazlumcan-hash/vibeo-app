@@ -7,6 +7,7 @@ import '../chat/chat_detail_screen.dart';
 import '../post/post_detail_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../services/notification_service.dart';
+import '../../services/surprise_engine_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -217,6 +218,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 fontSize: 12,
                               ),
                             ),
+                            const SizedBox(height: 8),
+                            _NotificationAfterimage(item: item),
                           ],
                         ),
                       ),
@@ -272,6 +275,80 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return (item.type == 'like' || item.type == 'comment') &&
         item.postId != null &&
         item.postId!.isNotEmpty;
+  }
+}
+
+class _NotificationAfterimage extends StatelessWidget {
+  final AppNotificationModel item;
+
+  const _NotificationAfterimage({required this.item});
+
+  Color _colorForSeed(ColorSeed seed) {
+    switch (seed) {
+      case ColorSeed.amber:
+        return Colors.amber;
+      case ColorSeed.pink:
+        return Colors.pinkAccent;
+      case ColorSeed.green:
+        return Colors.greenAccent;
+      case ColorSeed.purple:
+        return Colors.purpleAccent;
+      case ColorSeed.cyan:
+        return Colors.cyanAccent;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final future = item.postId == null || item.postId!.isEmpty
+        ? Future<Map<String, dynamic>?>.value(null)
+        : FirebaseFirestore.instance
+            .collection('posts')
+            .doc(item.postId!)
+            .get()
+            .then((doc) => doc.data());
+
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: future,
+      builder: (context, snapshot) {
+        final afterimage = SurpriseEngineService.buildAfterimage(
+          item,
+          postData: snapshot.data,
+        );
+        final color = _colorForSeed(afterimage.colorSeed);
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.18)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                afterimage.title,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                afterimage.summary,
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 11,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

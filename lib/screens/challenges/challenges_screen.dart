@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/points_service.dart';
+import '../../services/user_service.dart';
 
 class ChallengesScreen extends StatefulWidget {
   const ChallengesScreen({super.key});
@@ -228,8 +229,8 @@ class _ChallengeCard extends StatelessWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-            builder: (_) => ChallengeDetailScreen(
-                challengeId: data.id, title: data.title)),
+            builder: (_) =>
+                ChallengeDetailScreen(challengeId: data.id, title: data.title)),
       ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
@@ -269,16 +270,16 @@ class _ChallengeCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(data.description,
-                style:
-                    const TextStyle(color: Colors.white60, fontSize: 13, height: 1.5)),
+                style: const TextStyle(
+                    color: Colors.white60, fontSize: 13, height: 1.5)),
             const SizedBox(height: 10),
             Row(
               children: [
                 Icon(Icons.people_outline, color: data.accent, size: 14),
                 const SizedBox(width: 4),
                 Text('${data.participants} katılımcı',
-                    style: const TextStyle(
-                        color: Colors.white54, fontSize: 12)),
+                    style:
+                        const TextStyle(color: Colors.white54, fontSize: 12)),
                 const Spacer(),
                 Icon(Icons.emoji_events, color: data.accent, size: 14),
                 const SizedBox(width: 4),
@@ -379,8 +380,7 @@ class _LeaderRow extends StatelessWidget {
           CircleAvatar(
             radius: 18,
             backgroundColor: Colors.cyanAccent.withValues(alpha: 0.2),
-            backgroundImage:
-                imageUrl != null ? NetworkImage(imageUrl!) : null,
+            backgroundImage: imageUrl != null ? NetworkImage(imageUrl!) : null,
             child: imageUrl == null
                 ? Text(username[0].toUpperCase(),
                     style: const TextStyle(
@@ -433,8 +433,8 @@ class _PastChallenges extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   color: const Color(0xFF0B141D),
-                  border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.06)),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.06)),
                 ),
                 child: Row(
                   children: [
@@ -506,12 +506,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
     setState(() => _loading = true);
     try {
       final me = FirebaseAuth.instance.currentUser!;
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(me.uid)
-          .get();
-      final username =
-          (userDoc.data() as Map<String, dynamic>?)?['username'] ?? 'anonim';
+      final username = await UserService().getUsername(me.uid);
 
       await FirebaseFirestore.instance.collection('challenge_entries').add({
         'challengeId': widget.challengeId,
@@ -592,9 +587,10 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                     style: const TextStyle(color: Colors.white),
                     maxLines: 2,
                     decoration: const InputDecoration(
-                      hintText: 'Prompt\'unu yaz (İngilizce daha iyi sonuç verir)',
-                      prefixIcon: Icon(Icons.edit_outlined,
-                          color: Colors.cyanAccent),
+                      hintText:
+                          'Prompt\'unu yaz (İngilizce daha iyi sonuç verir)',
+                      prefixIcon:
+                          Icon(Icons.edit_outlined, color: Colors.cyanAccent),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -607,8 +603,8 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                               ? const SizedBox(
                                   width: 14,
                                   height: 14,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2))
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
                               : const Icon(Icons.auto_awesome, size: 16),
                           label: const Text('Oluştur'),
                           style: OutlinedButton.styleFrom(
@@ -620,8 +616,9 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed:
-                              (_previewUrl == null || _loading) ? null : _submit,
+                          onPressed: (_previewUrl == null || _loading)
+                              ? null
+                              : _submit,
                           icon: const Icon(Icons.send, size: 16),
                           label: const Text('Yarışmaya Gönder'),
                         ),
@@ -631,8 +628,8 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                   const SizedBox(height: 8),
                   const Center(
                     child: Text('+50 XP kazanırsın!',
-                        style: TextStyle(
-                            color: Colors.cyanAccent, fontSize: 12)),
+                        style:
+                            TextStyle(color: Colors.cyanAccent, fontSize: 12)),
                   ),
                 ],
               ),

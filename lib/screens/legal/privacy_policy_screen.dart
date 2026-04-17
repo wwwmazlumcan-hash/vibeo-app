@@ -35,7 +35,7 @@ class _PolicyContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _Section('Son güncelleme: Nisan 2026'),
@@ -50,9 +50,8 @@ class _PolicyContent extends StatelessWidget {
         _Section('5. Çerezler ve Takip',
             'Uygulama analitik amaçlı anonim kullanım verisi toplayabilir. Bunu ayarlardan devre dışı bırakabilirsiniz.'),
         _Section('6. Veri Silme',
-            'Hesabınızı silmek için destek@vibeo.app adresine e-posta gönderin. Verileriniz 30 gün içinde silinir.'),
-        _Section('7. İletişim',
-            'Sorularınız için: destek@vibeo.app'),
+            'Hesabınızı profil ekranındaki hesap silme aksiyonu ile uygulama içinden silebilirsiniz. Gerekirse destek@vibeo.app üzerinden ek destek alabilirsiniz.'),
+        _Section('7. İletişim', 'Sorularınız için: destek@vibeo.app'),
       ],
     );
   }
@@ -63,7 +62,7 @@ class _TermsContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _Section('Son güncelleme: Nisan 2026'),
@@ -79,8 +78,7 @@ class _TermsContent extends StatelessWidget {
             'Bakım, güncelleme veya teknik nedenlerle hizmet geçici olarak durdurulabilir.'),
         _Section('6. Değişiklikler',
             'Bu koşullar önceden bildirim yapılarak değiştirilebilir. Güncel koşullar uygulama içinde yayınlanır.'),
-        _Section('7. İletişim',
-            'Hukuki sorular için: hukuk@vibeo.app'),
+        _Section('7. İletişim', 'Hukuki sorular için: hukuk@vibeo.app'),
       ],
     );
   }

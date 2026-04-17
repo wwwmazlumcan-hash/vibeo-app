@@ -149,7 +149,7 @@ class _Page {
 
 class _PageView extends StatelessWidget {
   final _Page page;
-  const _PageView({super.key, required this.page});
+  const _PageView({required this.page});
 
   @override
   Widget build(BuildContext context) {

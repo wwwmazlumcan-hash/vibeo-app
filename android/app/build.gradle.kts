@@ -48,7 +48,7 @@ android {
 
     defaultConfig {
         applicationId = "com.vibeo.app"
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
