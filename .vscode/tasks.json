@@ -1,0 +1,85 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "flutter-analyze-bookmarks",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Build Flutter Web",
+			"type": "shell",
+			"command": "C:\\flutter\\bin\\flutter.bat",
+			"args": [
+				"build",
+				"web"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Deploy Firebase Hosting",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"deploy",
+				"--only",
+				"hosting"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web Retry",
+			"type": "shell",
+			"command": "C:\\flutter\\bin\\flutter.bat",
+			"args": [
+				"build",
+				"web"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Deploy Firebase Hosting Retry",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"deploy",
+				"--only",
+				"hosting"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web Fixed Bootstrap",
+			"type": "shell",
+			"command": "C:\\flutter\\bin\\flutter.bat",
+			"args": [
+				"build",
+				"web"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Deploy Firebase Hosting Fixed Bootstrap",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"deploy",
+				"--only",
+				"hosting",
+				"--project",
+				"vibeo-58032"
+			],
+			"isBackground": false,
+			"group": "build"
+		}
+	]
+}

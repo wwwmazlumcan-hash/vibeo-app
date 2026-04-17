@@ -26,7 +26,7 @@ class StoriesBar extends StatelessWidget {
             itemBuilder: (context, i) {
               // First item: "My Story" (add story button)
               if (i == 0) {
-                return _StoryAvatar(
+                return const _StoryAvatar(
                   label: 'Senin',
                   isMe: true,
                   isOnline: true,
@@ -78,16 +78,17 @@ class _StoryAvatar extends StatelessWidget {
                       : const LinearGradient(
                           colors: [Colors.cyanAccent, Colors.purpleAccent],
                         ),
-                  border: isMe
-                      ? Border.all(color: Colors.white24, width: 2)
-                      : null,
+                  border:
+                      isMe ? Border.all(color: Colors.white24, width: 2) : null,
                 ),
                 child: CircleAvatar(
                   radius: 28,
                   backgroundColor: Colors.grey.shade900,
                   child: isMe
-                      ? const Icon(Icons.add, color: Colors.cyanAccent, size: 26)
-                      : const Icon(Icons.person, color: Colors.white54, size: 26),
+                      ? const Icon(Icons.add,
+                          color: Colors.cyanAccent, size: 26)
+                      : const Icon(Icons.person,
+                          color: Colors.white54, size: 26),
                 ),
               ),
               if (isOnline && !isMe)

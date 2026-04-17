@@ -35,7 +35,14 @@ List<int> createPng(int w, int h, List<List<List<int>>> pixels) {
   }
 
   return [
-    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+    0x89,
+    0x50,
+    0x4E,
+    0x47,
+    0x0D,
+    0x0A,
+    0x1A,
+    0x0A,
     ...chunk([0x49, 0x48, 0x44, 0x52], ihdr.buffer.asUint8List().toList()),
     ...chunk([0x49, 0x44, 0x41, 0x54], compressed),
     ...chunk([0x49, 0x45, 0x4E, 0x44], []),
@@ -76,8 +83,8 @@ List<int> _mix(List<int> a, List<int> b, double t) {
 
 void main() {
   const W = 1024, H = 1024;
-  final cx = W / 2.0, cy = H / 2.0;
-  final Rmax = W / 2.0 - 8;
+  const cx = W / 2.0, cy = H / 2.0;
+  const rMax = W / 2.0 - 8;
 
   // Dark to cyan gradient background circle
   final bgDark = [5, 15, 25];
@@ -91,10 +98,10 @@ void main() {
     for (int x = 0; x < W; x++) {
       final dx = x - cx, dy = y - cy;
       final dist = sqrt(dx * dx + dy * dy);
-      if (dist > Rmax) continue;
+      if (dist > rMax) continue;
 
       // Radial gradient from dark center to slightly brighter edge
-      final radial = dist / Rmax;
+      final radial = dist / rMax;
       var color = _mix(bgDark, bgMid, radial * 0.6);
 
       // Swirl pattern — double spiral arms
@@ -127,5 +134,4 @@ void main() {
 
   final png = createPng(W, H, pixels);
   File('assets/icon/app_icon.png').writeAsBytesSync(png);
-  print('app_icon.png oluşturuldu (${png.length} bytes)');
 }

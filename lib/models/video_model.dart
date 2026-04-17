@@ -7,6 +7,7 @@ class VideoModel {
   final String profilePicUrl;
   final String videoUrl;
   final String description;
+  final List<String> hashtags;
   final int likesCount;
   final int commentsCount;
   final List<String> likedBy; // user ID listesi
@@ -19,6 +20,7 @@ class VideoModel {
     required this.profilePicUrl,
     required this.videoUrl,
     required this.description,
+    required this.hashtags,
     required this.likesCount,
     required this.commentsCount,
     required this.likedBy,
@@ -34,6 +36,7 @@ class VideoModel {
       profilePicUrl: data['profilePicUrl'] ?? '',
       videoUrl: data['videoUrl'] ?? '',
       description: data['description'] ?? '',
+      hashtags: List<String>.from(data['hashtags'] ?? []),
       likesCount: data['likesCount'] ?? 0,
       commentsCount: data['commentsCount'] ?? 0,
       likedBy: List<String>.from(data['likedBy'] ?? []),
@@ -47,6 +50,7 @@ class VideoModel {
         'profilePicUrl': profilePicUrl,
         'videoUrl': videoUrl,
         'description': description,
+        'hashtags': hashtags,
         'likesCount': likesCount,
         'commentsCount': commentsCount,
         'likedBy': likedBy,
@@ -57,6 +61,7 @@ class VideoModel {
     int? likesCount,
     int? commentsCount,
     List<String>? likedBy,
+    List<String>? hashtags,
   }) =>
       VideoModel(
         id: id,
@@ -65,6 +70,7 @@ class VideoModel {
         profilePicUrl: profilePicUrl,
         videoUrl: videoUrl,
         description: description,
+        hashtags: hashtags ?? this.hashtags,
         likesCount: likesCount ?? this.likesCount,
         commentsCount: commentsCount ?? this.commentsCount,
         likedBy: likedBy ?? this.likedBy,

@@ -6,12 +6,42 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
-      // Sahibi her alanı günceller; diğer kullanıcılar sadece points güncelleyebilir (like ödülü için)
-      allow update: if request.auth != null &&
-                    (request.auth.uid == userId ||
-                     request.resource.data.diff(resource.data).affectedKeys()
-                       .hasOnly(['points', 'pointsHistory']));
+      // Sahibi her alanı günceller; diğer kullanıcılar sadece points ve follow alanlarını güncelleyebilir
+        allow update: if request.auth != null &&
+                      (
+                        request.auth.uid == userId ||
+                        (
+                          request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['followers', 'followersCount']) &&
+                          (
+                            (
+                              request.resource.data.followers.hasAll(resource.data.followers) &&
+                              request.resource.data.followers.size() == resource.data.followers.size() + 1 &&
+                              request.resource.data.followersCount == resource.data.followersCount + 1 &&
+                              request.resource.data.followers.hasAny([request.auth.uid])
+                            ) ||
+                            (
+                              resource.data.followers.hasAll(request.resource.data.followers) &&
+                              request.resource.data.followers.size() == resource.data.followers.size() - 1 &&
+                              request.resource.data.followersCount == resource.data.followersCount - 1 &&
+                              resource.data.followers.hasAny([request.auth.uid])
+                            )
+                          )
+                        )
+                      );
       allow delete: if false;
+
+      match /notifications/{notificationId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null &&
+                      request.resource.data.toUid == userId &&
+                      request.resource.data.fromUid == request.auth.uid;
+        allow update: if request.auth != null &&
+                      request.auth.uid == userId &&
+                      request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['isRead']);
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // Postlar
@@ -32,6 +62,10 @@ service cloud.firestore {
         allow read: if request.auth != null;
         allow create: if request.auth != null
                       && request.resource.data.userId == request.auth.uid;
+        // Users can add/remove their own reactions
+        allow update: if request.auth != null &&
+                      request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['reactions']);
         allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
       }
     }
@@ -52,6 +86,39 @@ service cloud.firestore {
                         get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
         allow delete: if request.auth != null &&
                       resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    // Synapse rooms: authenticated users can read and participate
+    match /synapse_rooms/{roomId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null;
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null &&
+                      request.resource.data.keys().hasAll([
+                        'senderId',
+                        'senderUsername',
+                        'memberType',
+                        'text',
+                        'createdAt'
+                      ]) &&
+                      request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    match /governance_proposals/{proposalId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null;
+      allow delete: if false;
+
+      match /votes/{voteId} {
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null && voteId == request.auth.uid;
+        allow delete: if false;
       }
     }
 

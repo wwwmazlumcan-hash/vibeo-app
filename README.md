@@ -15,3 +15,19 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## Web Deploy
+
+Build the web app:
+
+```bash
+flutter build web
+```
+
+Deploy to Firebase Hosting:
+
+```bash
+firebase deploy --only hosting
+```
+
+The Firebase project is configured as `vibeo-58032` in `.firebaserc`.

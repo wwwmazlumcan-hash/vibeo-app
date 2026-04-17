@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
+
+import '../../services/openai_text_service.dart';
 
 class TwinSetupScreen extends StatefulWidget {
   const TwinSetupScreen({super.key});
@@ -16,18 +17,40 @@ class _TwinSetupScreenState extends State<TwinSetupScreen> {
   final _testCtrl = TextEditingController();
 
   bool _enabled = false;
+  bool _passiveMode = false;
   String _tone = 'samimi';
+  String _identityLabel = 'Bu bir insanın AI asistanıdır';
   List<String> _interests = [];
+  List<String> _allowedActions = ['simpleReplies'];
   bool _loading = true;
   bool _saving = false;
   bool _testing = false;
   String? _testReply;
 
   static const _tones = ['samimi', 'resmi', 'esprili', 'romantik', 'ciddi'];
+  static const _identityOptions = [
+    'Bu bir insanın AI asistanıdır',
+    'Bu bir AI botudur',
+  ];
+  static const _actionLabels = {
+    'simpleReplies': 'Basit etkileşimler',
+    'research': 'Ön araştırma',
+    'curation': 'İçerik küratörlüğü',
+  };
 
   static const _suggestedInterests = [
-    'müzik', 'film', 'spor', 'kitap', 'oyun', 'yemek',
-    'seyahat', 'fotoğraf', 'teknoloji', 'moda', 'sanat', 'doğa',
+    'müzik',
+    'film',
+    'spor',
+    'kitap',
+    'oyun',
+    'yemek',
+    'seyahat',
+    'fotoğraf',
+    'teknoloji',
+    'moda',
+    'sanat',
+    'doğa',
   ];
 
   @override
@@ -39,7 +62,8 @@ class _TwinSetupScreenState extends State<TwinSetupScreen> {
   Future<void> _load() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     final twin = doc.data()?['aiTwin'] as Map<String, dynamic>?;
     if (twin != null) {
       setState(() {
@@ -47,6 +71,12 @@ class _TwinSetupScreenState extends State<TwinSetupScreen> {
         _bioCtrl.text = (twin['bio'] ?? '') as String;
         _interests = List<String>.from(twin['interests'] ?? []);
         _tone = (twin['tone'] ?? 'samimi') as String;
+        _passiveMode = (twin['passiveMode'] ?? false) as bool;
+        _identityLabel = (twin['identityLabel'] ??
+            'Bu bir insanın AI asistanıdır') as String;
+        _allowedActions = List<String>.from(
+          twin['allowedActions'] ?? const ['simpleReplies'],
+        );
       });
     }
     setState(() => _loading = false);
@@ -63,6 +93,9 @@ class _TwinSetupScreenState extends State<TwinSetupScreen> {
         'bio': _bioCtrl.text.trim(),
         'interests': _interests,
         'tone': _tone,
+        'passiveMode': _passiveMode,
+        'identityLabel': _identityLabel,
+        'allowedActions': _allowedActions,
         'updatedAt': FieldValue.serverTimestamp(),
       },
     }, SetOptions(merge: true));
@@ -85,6 +118,18 @@ class _TwinSetupScreenState extends State<TwinSetupScreen> {
     _interestCtrl.clear();
   }
 
+  void _toggleAction(String action) {
+    setState(() {
+      if (_allowedActions.contains(action)) {
+        if (_allowedActions.length > 1) {
+          _allowedActions.remove(action);
+        }
+      } else {
+        _allowedActions.add(action);
+      }
+    });
+  }
+
   /// Test the twin locally (without posting to any chat).
   Future<void> _testTwin() async {
     final msg = _testCtrl.text.trim();
@@ -95,30 +140,31 @@ class _TwinSetupScreenState extends State<TwinSetupScreen> {
     });
 
     try {
-      final username =
-          FirebaseAuth.instance.currentUser?.displayName ?? 'sen';
+      final username = FirebaseAuth.instance.currentUser?.displayName ?? 'sen';
       final interestsStr =
           _interests.isEmpty ? 'genel konular' : _interests.join(', ');
 
-      final prompt = Uri.encodeComponent(
-        '''Sen @$username adlı bir kişisin.
+      final prompt = '''Sen @$username adlı bir kişisin.
 Biyografi: ${_bioCtrl.text.trim().isEmpty ? 'yok' : _bioCtrl.text.trim()}
 İlgi alanları: $interestsStr
 Konuşma tarzı: $_tone
+Mod: ${_passiveMode ? 'pasif destek modu' : 'sadece direkt mesaj desteği'}
+Etiket: $_identityLabel
+İzinli görevler: ${_allowedActions.map((a) => _actionLabels[a] ?? a).join(', ')}
 
 Sana gelen mesaj: "$msg"
 
-Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yanıt ver. Sadece yanıtı yaz.''',
+Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yanıt ver. Sadece yanıtı yaz.''';
+
+      final reply = await OpenAiTextService.generate(
+        prompt: prompt,
+        temperature: 0.8,
+        maxTokens: 120,
+        fallback: 'Yanıt alınamadı',
       );
 
-      final res = await http
-          .get(Uri.parse('https://text.pollinations.ai/$prompt'))
-          .timeout(const Duration(seconds: 20));
-
       setState(() {
-        _testReply = res.statusCode == 200
-            ? res.body.trim()
-            : 'Yanıt alınamadı';
+        _testReply = reply;
       });
     } catch (_) {
       setState(() => _testReply = 'Bağlantı hatası.');
@@ -140,7 +186,8 @@ Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yan
     if (_loading) {
       return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator(color: Colors.purpleAccent)),
+        body: Center(
+            child: CircularProgressIndicator(color: Colors.purpleAccent)),
       );
     }
 
@@ -154,7 +201,8 @@ Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yan
             Text('🤖', style: TextStyle(fontSize: 22)),
             SizedBox(width: 8),
             Text('AI İKİZ',
-                style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2)),
+                style:
+                    TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2)),
           ],
         ),
         centerTitle: true,
@@ -209,11 +257,9 @@ Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yan
                                 fontWeight: FontWeight.bold)),
                         SizedBox(height: 4),
                         Text(
-                          'Sen çevrimdışıyken gelen mesaplara AI senin tarzında yanıt verir.',
+                          'Gölge profilin sen yokken araştırma, kürasyon ve basit etkileşim desteği verebilir; kullanıcıya AI etiketi şeffaf biçimde gösterilir.',
                           style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              height: 1.3),
+                              color: Colors.white70, fontSize: 12, height: 1.3),
                         ),
                       ],
                     ),
@@ -236,30 +282,135 @@ Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yan
                     style: TextStyle(color: Colors.white)),
                 subtitle: Text(
                   _enabled
-                      ? '✓ Aktif — mesajlara otomatik yanıt veriyor'
+                      ? '✓ Aktif — şeffaf etiket ile AI temsilin devrede'
                       : '✗ Pasif — sadece sen yanıtlayabilirsin',
                   style: TextStyle(
-                      color:
-                          _enabled ? Colors.greenAccent : Colors.white38,
+                      color: _enabled ? Colors.greenAccent : Colors.white38,
                       fontSize: 12),
                 ),
                 value: _enabled,
-                activeColor: Colors.purpleAccent,
+                activeThumbColor: Colors.purpleAccent,
                 onChanged: (v) => setState(() => _enabled = v),
               ),
             ),
 
             const SizedBox(height: 20),
 
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: SwitchListTile(
+                title: const Text('Pasif mod',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: Text(
+                  _passiveMode
+                      ? 'AI, basit etkileşim ve içerik hazırlığında daha otonom davranır.'
+                      : 'AI yalnızca gerektiğinde temsil eder, daha kontrollü kalır.',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                value: _passiveMode,
+                activeThumbColor: Colors.purpleAccent,
+                onChanged: (v) => setState(() => _passiveMode = v),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            const _SectionLabel(
+                'Doğrulanmış Bilinç', 'Profilde hangi şeffaf etiket görünsün?'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _identityOptions.map((label) {
+                final selected = _identityLabel == label;
+                return ChoiceChip(
+                  label: Text(label),
+                  selected: selected,
+                  onSelected: (_) => setState(() => _identityLabel = label),
+                  backgroundColor: Colors.white10,
+                  selectedColor: Colors.purpleAccent.withValues(alpha: 0.25),
+                  labelStyle: TextStyle(
+                    color: selected ? Colors.purpleAccent : Colors.white70,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  side: BorderSide(
+                    color: selected ? Colors.purpleAccent : Colors.white24,
+                  ),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 20),
+
+            const _SectionLabel('Yetki Alanı',
+                'AI gölgenin hangi işleri yönetmesine izin verilsin?'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _actionLabels.entries.map((entry) {
+                final selected = _allowedActions.contains(entry.key);
+                return FilterChip(
+                  label: Text(entry.value),
+                  selected: selected,
+                  onSelected: (_) => _toggleAction(entry.key),
+                  backgroundColor: Colors.white10,
+                  selectedColor: Colors.purpleAccent.withValues(alpha: 0.22),
+                  labelStyle: TextStyle(
+                    color: selected ? Colors.purpleAccent : Colors.white70,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  side: BorderSide(
+                    color: selected ? Colors.purpleAccent : Colors.white24,
+                  ),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 20),
+
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Etik ve Gizlilik Katmanı',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Yerel gizlilik ve şeffaflık ilkesi: AI senin tarzından öğrenir ama profilde açık etiket taşır; öneri ve eylemler kullanıcının kontrolünde kalır.',
+                    style: TextStyle(
+                        color: Colors.white70, fontSize: 12, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
             // Bio
-            _SectionLabel('Biyografi', 'Kendini kısaca tanıt'),
+            const _SectionLabel('Biyografi', 'Kendini kısaca tanıt'),
             TextField(
               controller: _bioCtrl,
               style: const TextStyle(color: Colors.white),
               maxLines: 3,
               maxLength: 200,
               decoration: InputDecoration(
-                hintText: 'Örn: İstanbul\'da yaşayan bir yazılımcıyım, kahve ve film seviyorum',
+                hintText:
+                    'Örn: İstanbul\'da yaşayan bir yazılımcıyım, kahve ve film seviyorum',
                 hintStyle: const TextStyle(color: Colors.white24),
                 filled: true,
                 fillColor: Colors.white10,
@@ -274,7 +425,7 @@ Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yan
             const SizedBox(height: 20),
 
             // Interests
-            _SectionLabel('İlgi Alanları', 'Konuşmak sevdiğin konular'),
+            const _SectionLabel('İlgi Alanları', 'Konuşmak sevdiğin konular'),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -287,8 +438,7 @@ Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yan
                       deleteIconColor: Colors.purpleAccent,
                       side: BorderSide(
                           color: Colors.purpleAccent.withValues(alpha: 0.5)),
-                      onDeleted: () =>
-                          setState(() => _interests.remove(i)),
+                      onDeleted: () => setState(() => _interests.remove(i)),
                     )),
               ],
             ),
@@ -339,7 +489,7 @@ Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yan
             const SizedBox(height: 20),
 
             // Tone
-            _SectionLabel('Konuşma Tarzı', 'İkizin nasıl konuşsun?'),
+            const _SectionLabel('Konuşma Tarzı', 'İkizin nasıl konuşsun?'),
             Wrap(
               spacing: 8,
               children: _tones.map((t) {
@@ -352,13 +502,10 @@ Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yan
                   selectedColor: Colors.purpleAccent.withValues(alpha: 0.3),
                   labelStyle: TextStyle(
                     color: selected ? Colors.purpleAccent : Colors.white70,
-                    fontWeight:
-                        selected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                   ),
                   side: BorderSide(
-                    color: selected
-                        ? Colors.purpleAccent
-                        : Colors.white24,
+                    color: selected ? Colors.purpleAccent : Colors.white24,
                   ),
                 );
               }).toList(),
@@ -367,7 +514,7 @@ Bu kişi gibi, onun tarzında, Türkçe, KISA (maks. 2 cümle) ve doğal bir yan
             const SizedBox(height: 30),
 
             // Test area
-            _SectionLabel('🧪 Test Et', 'İkizin nasıl yanıtlıyor gör'),
+            const _SectionLabel('🧪 Test Et', 'İkizin nasıl yanıtlıyor gör'),
             TextField(
               controller: _testCtrl,
               style: const TextStyle(color: Colors.white),

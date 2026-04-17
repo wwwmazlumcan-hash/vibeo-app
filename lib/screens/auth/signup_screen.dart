@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../widgets/vibeo_button.dart';
-import '../../widgets/vibeo_input.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -12,15 +10,16 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final _usernameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
+  final _usernameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  bool _loading = false;
+  bool _obscure = true;
 
   Future<void> _signup() async {
-    final username = _usernameController.text.trim();
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    final username = _usernameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final password = _passCtrl.text.trim();
 
     if (username.isEmpty || email.isEmpty || password.isEmpty) {
       _showError('Tüm alanları doldur.');
@@ -35,22 +34,30 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() => _loading = true);
     try {
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
+      final user = cred.user;
+      if (user == null) {
+        if (!mounted) return;
+        _showError('Kullanıcı oluşturulamadı. Lütfen tekrar dene.');
+        return;
+      }
+
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(cred.user!.uid)
+          .doc(user.uid)
           .set({
-        'uid': cred.user!.uid,
+        'uid': user.uid,
         'email': email,
         'username': username,
         'profilePicUrl': '',
         'bio': '',
+        'points': 0,
         'followersCount': 0,
         'followingCount': 0,
         'videosCount': 0,
@@ -62,7 +69,7 @@ class _SignupScreenState extends State<SignupScreen> {
       if (!mounted) return;
       _showError(_parseError(e.toString()));
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -81,9 +88,9 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
+    _usernameCtrl.dispose();
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
     super.dispose();
   }
 
@@ -92,43 +99,92 @@ class _SignupScreenState extends State<SignupScreen> {
     return Scaffold(
       appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(25.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const RadialGradient(
+                  colors: [Colors.cyanAccent, Color(0xFF003333)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.cyanAccent.withValues(alpha: 0.5),
+                      blurRadius: 24),
+                ],
+              ),
+              child: const Icon(Icons.person_add_alt_1,
+                  color: Colors.black, size: 34),
+            ),
+            const SizedBox(height: 16),
             const Text(
               'YENİ HESAP OLUŞTUR',
               style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white),
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
             ),
-            const SizedBox(height: 40),
-            VibeoInput(
-              controller: _usernameController,
-              hintText: 'Kullanıcı adı',
-              prefixIcon: Icons.person,
+            const SizedBox(height: 32),
+            TextField(
+              controller: _usernameCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'Kullanıcı adı',
+                prefixIcon:
+                    Icon(Icons.person_outline, color: Colors.cyanAccent),
+              ),
             ),
-            const SizedBox(height: 15),
-            VibeoInput(
-              controller: _emailController,
-              hintText: 'E-posta',
-              prefixIcon: Icons.email,
+            const SizedBox(height: 14),
+            TextField(
+              controller: _emailCtrl,
+              style: const TextStyle(color: Colors.white),
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                hintText: 'E-posta',
+                prefixIcon:
+                    Icon(Icons.mail_outline, color: Colors.cyanAccent),
+              ),
             ),
-            const SizedBox(height: 15),
-            VibeoInput(
-              controller: _passwordController,
-              hintText: 'Şifre (min. 6 karakter)',
-              prefixIcon: Icons.lock,
-              isPassword: true,
+            const SizedBox(height: 14),
+            TextField(
+              controller: _passCtrl,
+              obscureText: _obscure,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Şifre (min. 6 karakter)',
+                prefixIcon:
+                    const Icon(Icons.lock_outline, color: Colors.cyanAccent),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                      _obscure ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.white38),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                ),
+              ),
             ),
-            const SizedBox(height: 30),
-            VibeoButton(
-              text: 'KAYIT OL',
-              onPressed: _signup,
-              isLoading: _isLoading,
-              color: Colors.white,
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _signup,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.black, strokeWidth: 2))
+                    : const Text('KAYIT OL',
+                        style: TextStyle(letterSpacing: 1.2)),
+              ),
             ),
           ],
         ),

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
+
+import 'openai_text_service.dart';
 import 'presence_service.dart';
 
 /// AI Digital Twin (İkiz) service.
@@ -7,7 +9,8 @@ import 'presence_service.dart';
 class TwinService {
   /// Fetches a user's twin persona. Returns null if twin is disabled.
   static Future<_Persona?> _loadPersona(String uid) async {
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     if (!doc.exists) return null;
     final data = doc.data() ?? {};
     final twin = data['aiTwin'] as Map<String, dynamic>?;
@@ -18,6 +21,10 @@ class TwinService {
       bio: (twin['bio'] ?? '') as String,
       interests: List<String>.from(twin['interests'] ?? []),
       tone: (twin['tone'] ?? 'samimi') as String,
+      passiveMode: (twin['passiveMode'] ?? false) as bool,
+      identityLabel:
+          (twin['identityLabel'] ?? 'Bu bir insanın AI asistanıdır') as String,
+      allowedActions: List<String>.from(twin['allowedActions'] ?? const []),
     );
   }
 
@@ -52,8 +59,7 @@ class TwinService {
         .get();
     if (!userDoc.exists) return null;
 
-    final lastActive =
-        (userDoc.data()?['lastActive'] as Timestamp?)?.toDate();
+    final lastActive = (userDoc.data()?['lastActive'] as Timestamp?)?.toDate();
     if (!PresenceService.isOffline(lastActive)) return null;
 
     // 2. Load persona
@@ -66,15 +72,14 @@ class TwinService {
     // 4. Build prompt
     final prompt = _buildPrompt(persona, incomingMessage, context);
 
-    // 5. Generate reply via Pollinations
+    // 5. Generate reply via OpenAI
     try {
-      final encoded = Uri.encodeComponent(prompt);
-      final res = await http
-          .get(Uri.parse('https://text.pollinations.ai/$encoded'))
-          .timeout(const Duration(seconds: 20));
-
-      if (res.statusCode != 200) return null;
-      final reply = res.body.trim();
+      final reply = await OpenAiTextService.generate(
+        prompt: prompt,
+        temperature: 0.8,
+        maxTokens: 120,
+        fallback: '',
+      );
       if (reply.isEmpty) return null;
 
       // 6. Post reply as the recipient (marked as twin)
@@ -85,6 +90,7 @@ class TwinService {
         'senderId': recipientUid,
         'text': reply,
         'isAiTwin': true,
+        'aiIdentityLabel': persona.identityLabel,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -94,7 +100,8 @@ class TwinService {
       });
 
       return reply;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('TwinService error: $e');
       return null;
     }
   }
@@ -115,6 +122,9 @@ KİMLİĞİN:
 - Biyografi: ${p.bio.isEmpty ? 'henüz yazmamış' : p.bio}
 - İlgi alanları: $interestsStr
 - Konuşma tarzı: ${p.tone}
+- Mod: ${p.passiveMode ? 'pasif-otonom destek' : 'sadece yardımcı yanıt'}
+- Şeffaf etiket: ${p.identityLabel}
+- İzinli görevler: ${p.allowedActions.isEmpty ? 'basit yanıt' : p.allowedActions.join(', ')}
 $contextStr
 Sana gelen mesaj: "$incoming"
 
@@ -129,10 +139,16 @@ class _Persona {
   final String bio;
   final List<String> interests;
   final String tone;
+  final bool passiveMode;
+  final String identityLabel;
+  final List<String> allowedActions;
   _Persona({
     required this.username,
     required this.bio,
     required this.interests,
     required this.tone,
+    required this.passiveMode,
+    required this.identityLabel,
+    required this.allowedActions,
   });
 }

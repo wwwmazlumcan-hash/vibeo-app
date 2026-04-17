@@ -3,6 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../earn/earn_screen.dart';
 import '../fitness/fitness_screen.dart';
+import 'dream_net_screen.dart';
+import 'governance_screen.dart';
+import 'liquid_identity_screen.dart';
+import 'synapse_room_screen.dart';
 import '../twin/twin_setup_screen.dart';
 import '../../services/points_service.dart';
 
@@ -14,12 +18,8 @@ class HubScreen extends StatelessWidget {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: const Text('VİBEO HUB',
-            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2)),
-        centerTitle: true,
+        title: const Text('VİBEO HUB'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -45,14 +45,16 @@ class HubScreen extends StatelessWidget {
                       colors: [Color(0xFF003333), Color(0xFF001a2e)],
                     ),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: Colors.cyanAccent.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
                       const CircleAvatar(
                         radius: 32,
                         backgroundColor: Colors.cyanAccent,
-                        child: Icon(Icons.person, size: 32, color: Colors.black),
+                        child:
+                            Icon(Icons.person, size: 32, color: Colors.black),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -64,8 +66,7 @@ class HubScreen extends StatelessWidget {
                                     color: Colors.white,
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold)),
-                            Text(badge,
-                                style: const TextStyle(fontSize: 16)),
+                            Text(badge, style: const TextStyle(fontSize: 16)),
                             Text('$points XP',
                                 style: const TextStyle(
                                     color: Colors.cyanAccent,
@@ -102,8 +103,10 @@ class HubScreen extends StatelessWidget {
                   subtitle: 'Dijital klonun\nsenin yerine yanıtlar',
                   gradient: const [Color(0xFF1a0033), Color(0xFF330066)],
                   borderColor: Colors.purpleAccent,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const TwinSetupScreen())),
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const TwinSetupScreen())),
                 ),
                 _FeatureCard(
                   icon: '🏆',
@@ -132,12 +135,64 @@ class HubScreen extends StatelessWidget {
                   onTap: () => _showModInfo(context),
                 ),
                 _FeatureCard(
+                  icon: '🧠',
+                  title: 'Synapse',
+                  subtitle: 'AI üyeli\nkolektif zeka odaları',
+                  gradient: const [Color(0xFF071225), Color(0xFF24103A)],
+                  borderColor: Colors.cyanAccent,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SynapseRoomScreen(),
+                    ),
+                  ),
+                ),
+                _FeatureCard(
                   icon: '🔧',
                   title: 'Sistem Durumu',
                   subtitle: 'Self-healing\naktif',
                   gradient: const [Color(0xFF001a1a), Color(0xFF003333)],
                   borderColor: Colors.cyanAccent,
                   onTap: () => _showSystemStatus(context),
+                ),
+                _FeatureCard(
+                  icon: '🪞',
+                  title: 'Liquid Identity',
+                  subtitle: 'Bağlama göre\nkimliğin evrilir',
+                  gradient: const [Color(0xFF18112A), Color(0xFF102642)],
+                  borderColor: Colors.lightBlueAccent,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LiquidIdentityScreen(),
+                    ),
+                  ),
+                ),
+                _FeatureCard(
+                  icon: '🌙',
+                  title: 'Dream Net',
+                  subtitle: 'Sen uyurken\nAI katkı özeti',
+                  gradient: const [Color(0xFF10152D), Color(0xFF2C1335)],
+                  borderColor: Colors.pinkAccent,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DreamNetScreen(),
+                    ),
+                  ),
+                ),
+                _FeatureCard(
+                  icon: '⚖️',
+                  title: 'Ethic Council',
+                  subtitle: 'Mikro oylama ve\nalgoritma yasama',
+                  gradient: const [Color(0xFF171B28), Color(0xFF31161E)],
+                  borderColor: Colors.orangeAccent,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const GovernanceScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -146,10 +201,18 @@ class HubScreen extends StatelessWidget {
             const _SectionTitle('Nasıl kazanırsın?'),
             const SizedBox(height: 12),
 
-            _MiniEarnRow(icon: Icons.auto_awesome, label: 'Vibeo paylaş', xp: '+10 XP'),
-            _MiniEarnRow(icon: Icons.favorite, label: 'Beğeni al', xp: '+2 XP'),
-            _MiniEarnRow(icon: Icons.comment, label: 'Yorum al', xp: '+3 XP'),
-            _MiniEarnRow(icon: Icons.login, label: 'Günlük giriş', xp: '+5 XP'),
+            const _MiniEarnRow(
+                icon: Icons.auto_awesome, label: 'Vibeo paylaş', xp: '+10 XP'),
+            const _MiniEarnRow(
+                icon: Icons.favorite, label: 'Beğeni al', xp: '+2 XP'),
+            const _MiniEarnRow(
+                icon: Icons.comment, label: 'Yorum al', xp: '+3 XP'),
+            const _MiniEarnRow(
+                icon: Icons.login, label: 'Günlük giriş', xp: '+5 XP'),
+            const _MiniEarnRow(
+                icon: Icons.account_tree_outlined,
+                label: 'Şeffaf üretim puanı biriktir',
+                xp: 'Proof'),
             const SizedBox(height: 80),
           ],
         ),
@@ -161,7 +224,6 @@ class HubScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF111111),
         title: const Text('🛡️ AI Moderasyon',
             style: TextStyle(color: Colors.white)),
         content: const Text(
@@ -174,7 +236,8 @@ class HubScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Anladım', style: TextStyle(color: Colors.cyanAccent)),
+            child: const Text('Anladım',
+                style: TextStyle(color: Colors.cyanAccent)),
           ),
         ],
       ),
@@ -185,7 +248,6 @@ class HubScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF111111),
         title: const Text('🔧 Sistem Durumu',
             style: TextStyle(color: Colors.white)),
         content: const Column(
@@ -201,7 +263,8 @@ class HubScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Kapat', style: TextStyle(color: Colors.cyanAccent)),
+            child:
+                const Text('Kapat', style: TextStyle(color: Colors.cyanAccent)),
           ),
         ],
       ),
@@ -265,8 +328,8 @@ class _FeatureCard extends StatelessWidget {
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text(subtitle,
-                style:
-                    const TextStyle(color: Colors.white38, fontSize: 11, height: 1.3)),
+                style: const TextStyle(
+                    color: Colors.white38, fontSize: 11, height: 1.3)),
           ],
         ),
       ),

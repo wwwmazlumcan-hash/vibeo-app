@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/notification_service.dart';
 
 class CommentsScreen extends StatefulWidget {
   final String postId;
@@ -22,8 +23,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
 
     setState(() => _sending = true);
     try {
-      // Kullanıcı adını çek
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final username = (userDoc.exists && userDoc['username'] != null)
           ? userDoc['username'] as String
           : uid.substring(0, 6);
@@ -37,7 +38,22 @@ class _CommentsScreenState extends State<CommentsScreen> {
         'username': username,
         'text': text,
         'createdAt': FieldValue.serverTimestamp(),
+        'reactions': {}, // Initialize empty reactions map
       });
+
+      final postDoc = await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId)
+          .get();
+      final postOwnerUid = (postDoc.data()?['userId'] ?? '') as String;
+      if (postOwnerUid.isNotEmpty && postOwnerUid != uid) {
+        await NotificationService.sendCommentNotification(
+          toUid: postOwnerUid,
+          postId: widget.postId,
+          commentText: text,
+        );
+      }
+
       _ctrl.clear();
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -57,32 +73,34 @@ class _CommentsScreenState extends State<CommentsScreen> {
       minChildSize: 0.4,
       maxChildSize: 0.95,
       builder: (_, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF111111),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B141D),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.25)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.cyanAccent.withValues(alpha: 0.15),
+                blurRadius: 24,
+                spreadRadius: -4),
+          ],
         ),
         child: Column(
           children: [
-            // Handle
             Container(
               margin: const EdgeInsets.symmetric(vertical: 12),
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: Colors.cyanAccent.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const Text(
-              'Yorumlar',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white),
-            ),
-            const Divider(color: Colors.white12),
-
-            // Yorum listesi
+            const Text('Yorumlar',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
+            Divider(color: Colors.cyanAccent.withValues(alpha: 0.15)),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -94,7 +112,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 builder: (context, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const Center(
-                        child: CircularProgressIndicator(color: Colors.cyanAccent));
+                        child: CircularProgressIndicator(
+                            color: Colors.cyanAccent));
                   }
                   final docs = snap.data?.docs ?? [];
                   if (docs.isEmpty) {
@@ -110,17 +129,20 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     itemBuilder: (_, i) {
                       final d = docs[i].data() as Map<String, dynamic>;
                       return _CommentTile(
+                        postId: widget.postId,
+                        commentId: docs[i].id,
+                        userId: d['userId'] ?? '',
                         username: d['username'] ?? 'kullanıcı',
                         text: d['text'] ?? '',
                         createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
+                        reactions:
+                            Map<String, String>.from(d['reactions'] ?? {}),
                       );
                     },
                   );
                 },
               ),
             ),
-
-            // Yorum yaz
             Container(
               padding: EdgeInsets.only(
                 left: 16,
@@ -128,25 +150,29 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 top: 10,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 12,
               ),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.white12)),
+              decoration: BoxDecoration(
+                border: Border(
+                    top: BorderSide(
+                        color: Colors.cyanAccent.withValues(alpha: 0.15))),
               ),
               child: Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Yorum yaz...',
-                        hintStyle: const TextStyle(color: Colors.white38),
-                        filled: true,
-                        fillColor: Colors.white10,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                            color: Colors.cyanAccent.withValues(alpha: 0.2)),
+                      ),
+                      child: TextField(
+                        controller: _ctrl,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          hintText: 'Yorum yaz...',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
                         ),
                       ),
                     ),
@@ -159,10 +185,25 @@ class _CommentsScreenState extends State<CommentsScreen> {
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.cyanAccent),
                         )
-                      : IconButton(
-                          onPressed: _send,
-                          icon: const Icon(Icons.send_rounded,
-                              color: Colors.cyanAccent),
+                      : GestureDetector(
+                          onTap: _send,
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const RadialGradient(
+                                colors: [Colors.cyanAccent, Color(0xFF006666)],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.cyanAccent
+                                        .withValues(alpha: 0.5),
+                                    blurRadius: 10),
+                              ],
+                            ),
+                            child: const Icon(Icons.send_rounded,
+                                color: Colors.black, size: 18),
+                          ),
                         ),
                 ],
               ),
@@ -174,15 +215,32 @@ class _CommentsScreenState extends State<CommentsScreen> {
   }
 }
 
-class _CommentTile extends StatelessWidget {
+class _CommentTile extends StatefulWidget {
+  final String postId;
+  final String commentId;
+  final String userId;
   final String username;
   final String text;
   final DateTime? createdAt;
+  final Map<String, String> reactions;
+
   const _CommentTile({
+    required this.postId,
+    required this.commentId,
+    required this.userId,
     required this.username,
     required this.text,
     this.createdAt,
+    this.reactions = const {},
   });
+
+  @override
+  State<_CommentTile> createState() => _CommentTileState();
+}
+
+class _CommentTileState extends State<_CommentTile> {
+  final _emojis = ['❤️', '😂', '😮', '😢', '🔥'];
+  bool _showReactionPicker = false;
 
   String _timeAgo(DateTime? dt) {
     if (dt == null) return '';
@@ -193,46 +251,189 @@ class _CommentTile extends StatelessWidget {
     return '${diff.inDays}g';
   }
 
+  Future<void> _addReaction(String emoji) async {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId)
+          .collection('comments')
+          .doc(widget.commentId)
+          .update({
+        'reactions.$myUid': emoji,
+      });
+      setState(() => _showReactionPicker = false);
+    } catch (e) {
+      debugPrint('Error adding reaction: $e');
+    }
+  }
+
+  Future<void> _removeReaction() async {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId)
+          .collection('comments')
+          .doc(widget.commentId)
+          .update({
+        'reactions.$myUid': FieldValue.delete(),
+      });
+    } catch (e) {
+      debugPrint('Error removing reaction: $e');
+    }
+  }
+
+  Map<String, int> _getReactionCounts() {
+    final counts = <String, int>{};
+    for (var emoji in widget.reactions.values) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    final myReaction = widget.reactions[myUid];
+    final reactionCounts = _getReactionCounts();
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.cyanAccent,
-            child: Icon(Icons.person, size: 18, color: Colors.black),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      '@$username',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.cyanAccent,
-                          fontSize: 13),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _timeAgo(createdAt),
-                      style: const TextStyle(color: Colors.white38, fontSize: 11),
-                    ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const RadialGradient(
+                    colors: [Colors.cyanAccent, Color(0xFF006666)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.cyanAccent.withValues(alpha: 0.3),
+                        blurRadius: 6),
                   ],
                 ),
-                const SizedBox(height: 3),
-                Text(text,
-                    style:
-                        const TextStyle(color: Colors.white, fontSize: 14)),
-              ],
-            ),
+                child: const Icon(Icons.person, size: 18, color: Colors.black),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text('@${widget.username}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.cyanAccent,
+                                fontSize: 13)),
+                        const SizedBox(width: 8),
+                        Text(_timeAgo(widget.createdAt),
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 11)),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(widget.text,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14)),
+                  ],
+                ),
+              ),
+              // Emoji picker button
+              GestureDetector(
+                onTap: () =>
+                    setState(() => _showReactionPicker = !_showReactionPicker),
+                child: Icon(Icons.emoji_emotions_outlined,
+                    color: Colors.cyanAccent.withValues(alpha: 0.6), size: 18),
+              ),
+            ],
           ),
+          const SizedBox(height: 6),
+          // Reaction picker (emoji buttons)
+          if (_showReactionPicker)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+              child: Wrap(
+                spacing: 4,
+                children: _emojis
+                    .map(
+                      (emoji) => GestureDetector(
+                        onTap: () => _addReaction(emoji),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.cyanAccent.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child:
+                              Text(emoji, style: const TextStyle(fontSize: 16)),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          // Reaction display (emoji counts)
+          if (reactionCounts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Wrap(
+                spacing: 4,
+                children: reactionCounts.entries
+                    .map(
+                      (entry) => GestureDetector(
+                        onTap: myReaction == entry.key
+                            ? _removeReaction
+                            : () => _addReaction(entry.key),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: myReaction == entry.key
+                                ? Colors.cyanAccent.withValues(alpha: 0.3)
+                                : Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: myReaction == entry.key
+                                  ? Colors.cyanAccent
+                                  : Colors.cyanAccent.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(entry.key,
+                                  style: const TextStyle(fontSize: 12)),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${entry.value}',
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
         ],
       ),
     );

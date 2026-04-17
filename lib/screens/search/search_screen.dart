@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/hashtag_service.dart';
 import '../post/post_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -13,6 +14,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   String _category = 'Tümü';
+  String? _selectedHashtag;
 
   static const _bg = Color(0xFF03070D);
   static const _categories = {
@@ -141,6 +143,46 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            SizedBox(
+              height: 42,
+              child: StreamBuilder<List<String>>(
+                stream: HashtagService.trendingHashtags(),
+                builder: (context, snapshot) {
+                  final tags = snapshot.data ?? const <String>[];
+                  if (tags.isEmpty) return const SizedBox.shrink();
+
+                  return ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedHashtag = null),
+                          child: _HashtagChip(
+                            label: 'Trend',
+                            selected: _selectedHashtag == null,
+                          ),
+                        ),
+                      ),
+                      ...tags.map((tag) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedHashtag = tag),
+                            child: _HashtagChip(
+                              label: '#$tag',
+                              selected: _selectedHashtag == tag,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -157,7 +199,18 @@ class _SearchScreenState extends State<SearchScreen> {
                     final data = doc.data() as Map<String, dynamic>;
                     final prompt =
                         (data['prompt'] ?? '').toString().toLowerCase();
-                    if (_query.isNotEmpty && !prompt.contains(_query)) {
+                    final hashtags = List<String>.from(data['hashtags'] ?? []);
+                    final hashtagQuery =
+                        _query.startsWith('#') ? _query.substring(1) : _query;
+
+                    final matchesQuery = _query.isEmpty ||
+                        prompt.contains(_query) ||
+                        hashtags.any((tag) => tag.contains(hashtagQuery));
+                    if (!matchesQuery) {
+                      return false;
+                    }
+                    if (_selectedHashtag != null &&
+                        !hashtags.contains(_selectedHashtag)) {
                       return false;
                     }
                     return true;
@@ -186,6 +239,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         postId: docs[i].id,
                         imageUrl: data['imageUrl'] ?? '',
                         prompt: data['prompt'] ?? '',
+                        hashtags: List<String>.from(data['hashtags'] ?? []),
                         userId: data['userId'] ?? '',
                       );
                     },
@@ -204,12 +258,14 @@ class _ExploreCard extends StatelessWidget {
   final String postId;
   final String imageUrl;
   final String prompt;
+  final List<String> hashtags;
   final String userId;
 
   const _ExploreCard({
     required this.postId,
     required this.imageUrl,
     required this.prompt,
+    required this.hashtags,
     required this.userId,
   });
 
@@ -231,8 +287,7 @@ class _ExploreCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           color: const Color(0xFF0B141D),
-          border:
-              Border.all(color: Colors.cyanAccent.withValues(alpha: 0.2)),
+          border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.2)),
           boxShadow: [
             BoxShadow(
               color: Colors.cyanAccent.withValues(alpha: 0.08),
@@ -255,8 +310,7 @@ class _ExploreCard extends StatelessWidget {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const ColoredBox(
                         color: Colors.black,
-                        child: Icon(Icons.broken_image,
-                            color: Colors.white24),
+                        child: Icon(Icons.broken_image, color: Colors.white24),
                       ),
                     ),
                     Positioned(
@@ -269,8 +323,7 @@ class _ExploreCard extends StatelessWidget {
                           color: Colors.black.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                              color: Colors.cyanAccent
-                                  .withValues(alpha: 0.4)),
+                              color: Colors.cyanAccent.withValues(alpha: 0.4)),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
@@ -294,20 +347,76 @@ class _ExploreCard extends StatelessWidget {
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                child: Text(
-                  prompt,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    height: 1.3,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      prompt,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        height: 1.3,
+                      ),
+                    ),
+                    if (hashtags.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: hashtags.take(2).map((tag) {
+                          return Text(
+                            '#$tag',
+                            style: const TextStyle(
+                              color: Colors.cyanAccent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HashtagChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+
+  const _HashtagChip({required this.label, required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      decoration: BoxDecoration(
+        color: selected
+            ? Colors.cyanAccent.withValues(alpha: 0.15)
+            : Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: selected
+              ? Colors.cyanAccent
+              : Colors.white.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: selected ? Colors.cyanAccent : Colors.white70,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

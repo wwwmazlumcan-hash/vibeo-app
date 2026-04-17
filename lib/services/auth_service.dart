@@ -17,8 +17,13 @@ class AuthService {
     final cred = await _auth.createUserWithEmailAndPassword(
         email: email.trim(), password: password.trim());
 
+    final user = cred.user;
+    if (user == null) {
+      throw Exception('Kullanıcı oluşturulamadı');
+    }
+
     // Firestore'da kullanıcı profili oluştur
-    await _db.collection('users').doc(cred.user!.uid).set({
+    await _db.collection('users').doc(user.uid).set({
       'email': email.trim(),
       'username': username.trim(),
       'bio': '',

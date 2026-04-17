@@ -1,6 +1,10 @@
 import 'dart:async';
-import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import 'connectivity_probe_stub.dart'
+    if (dart.library.io) 'connectivity_probe_io.dart';
 
 /// Self-healing connectivity service.
 /// Monitors internet connection and notifies listeners.
@@ -15,6 +19,10 @@ class ConnectivityService extends ChangeNotifier {
   Timer? _timer;
 
   void startMonitoring() {
+    if (kIsWeb) {
+      _isOnline = true;
+      return;
+    }
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _check());
     _check();
@@ -23,15 +31,22 @@ class ConnectivityService extends ChangeNotifier {
   void stopMonitoring() => _timer?.cancel();
 
   Future<void> _check() async {
+    if (kIsWeb) {
+      if (!_isOnline) {
+        _isOnline = true;
+        notifyListeners();
+      }
+      return;
+    }
+
     try {
-      final result = await InternetAddress.lookup('google.com')
-          .timeout(const Duration(seconds: 5));
-      final online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+      final online = await lookupConnection();
       if (online != _isOnline) {
         _isOnline = online;
         notifyListeners();
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Connectivity check error: $e');
       if (_isOnline) {
         _isOnline = false;
         notifyListeners();

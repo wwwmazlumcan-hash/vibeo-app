@@ -9,6 +9,8 @@ class UserModel {
   final int followersCount;
   final int followingCount;
   final int videosCount;
+  final List<String> followers; // UIDs of people following this user
+  final List<String> following; // UIDs of people this user is following
   final DateTime createdAt;
 
   UserModel({
@@ -20,6 +22,8 @@ class UserModel {
     required this.followersCount,
     required this.followingCount,
     required this.videosCount,
+    required this.followers,
+    required this.following,
     required this.createdAt,
   });
 
@@ -34,6 +38,8 @@ class UserModel {
       followersCount: data['followersCount'] ?? 0,
       followingCount: data['followingCount'] ?? 0,
       videosCount: data['videosCount'] ?? 0,
+      followers: List<String>.from(data['followers'] ?? []),
+      following: List<String>.from(data['following'] ?? []),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -46,6 +52,8 @@ class UserModel {
         'followersCount': followersCount,
         'followingCount': followingCount,
         'videosCount': videosCount,
+        'followers': followers,
+        'following': following,
         'createdAt': Timestamp.fromDate(createdAt),
       };
 }

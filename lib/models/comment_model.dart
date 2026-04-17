@@ -7,6 +7,7 @@ class CommentModel {
   final String profilePicUrl;
   final String text;
   final DateTime createdAt;
+  final Map<String, String> reactions; // userId -> emoji
 
   CommentModel({
     required this.id,
@@ -15,6 +16,7 @@ class CommentModel {
     required this.profilePicUrl,
     required this.text,
     required this.createdAt,
+    this.reactions = const {},
   });
 
   factory CommentModel.fromDoc(DocumentSnapshot doc) {
@@ -26,6 +28,7 @@ class CommentModel {
       profilePicUrl: data['profilePicUrl'] ?? '',
       text: data['text'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      reactions: Map<String, String>.from(data['reactions'] ?? {}),
     );
   }
 
@@ -35,5 +38,6 @@ class CommentModel {
         'profilePicUrl': profilePicUrl,
         'text': text,
         'createdAt': Timestamp.fromDate(createdAt),
+        'reactions': reactions,
       };
 }
